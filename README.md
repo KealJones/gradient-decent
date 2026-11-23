@@ -192,10 +192,19 @@ python3 tools/compile_filter.py filter/model.json tools/filter_template.html fil
 - **A `ResizeObserver` carries widths between stages** and reports which dot appeared. Its callbacks cascade inside
   one frame, so a character is finished when the browser has nothing left to resize.
 
-Sampling is Gumbel noise as one random-width box per character. In headless Chrome 153 the dot landed on the same
-character as plain JavaScript 20 times out of 20 with scores within 0.006, at about 650 ms a character for 35,055
-boxes: roughly 18,000 times slower than the JavaScript loop. The page builds its boxes from `css/model.json` at
-load, so there is nothing to compile.
+- **The dice are floats.** Sampling adds Gumbel noise to every score. Each die is 256 floats stacked into a staircase
+  that draws the Gumbel curve; a block is pushed down a random number of steps and layout squeezes it into the room
+  beside the step it lands on. The die's width is a box whose `aspect-ratio` is the temperature, so the same pass
+  scales the noise.
+
+The script does none of the model's sums. It writes each weight into a box as text (a leading minus sign decides
+which row), copies widths from one stage to the next, and asks for 37 random bytes per character. The 256 step
+widths of the dice are a constant table in the page, `100 - 10 * (2 - ln(-ln((k + 0.5) / 256)))` percent. A plain
+JavaScript copy of the model exists only as the checker in the race.
+
+In headless Chrome 153 the dot landed on the same character as plain JavaScript 20 times out of 20 with scores
+within 0.006, at about 670 ms a character for 44,564 boxes: more than 10,000 times slower than the JavaScript loop.
+The page builds its boxes from `css/model.json` at load, so there is nothing to compile.
 
 ## Run it
 

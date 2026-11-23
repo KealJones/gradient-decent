@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Layout · Gradient Decent</title>
-<meta name="description" content="A tiny language model whose arithmetic is done by page layout: aspect-ratio multiplies, flex rows add, leftover space subtracts and clamps, and a shared grid column finds the largest.">
+<meta name="description" content="A tiny language model whose arithmetic is done by page layout: aspect-ratio multiplies, flex rows add, leftover space subtracts and clamps, floats roll the dice, and a shared grid column finds the largest.">
 <link rel="stylesheet" href="../lib/page.css?v=5">
 <style>
   #out { white-space:pre-wrap; min-height:150px; padding:16px; margin:0 0 6px; border:1px solid var(--line); border-radius:8px; background:var(--bg); font:18px/1.6 Georgia, "Iowan Old Style", serif; overflow-wrap:anywhere }
@@ -13,31 +13,46 @@
   .tag.layout { background:#ff9ecb }
   .key { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 5px 0 12px; vertical-align:-1px }
 
-  /* ---- The machine. Everything in here is real layout; the transforms only shrink it so it fits on screen. ---- */
-  .n { display:grid; grid-template-columns:max-content; justify-content:start; position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(var(--kx), var(--ky)) }
+  /* ---- The machine. Everything in here is real layout. The transforms only shrink it so it fits on screen, and
+          font-size is the unit: one unit of the model is 1em, which is 256 pixels. ---- */
+  .n, .dn { display:grid; grid-template-columns:max-content; justify-content:start; position:absolute; left:0; top:0; font-size:256px; transform-origin:0 0; transform:scale(var(--kx), var(--ky)) }
   .row { display:flex; align-items:flex-start }
   .row > i { flex:none; display:block }
   .d { display:flex; align-items:flex-start }
   .d > .m { flex:none }
   .r { flex:1 1 0; min-width:0; background:var(--cool) }
+  .one { height:1em } .off { height:1em; width:12em }
   .p > i { background:#ff5a36 } .p > i:nth-child(even) { background:#ffb347 }
   .m > i { background:#3d7dff } .m > i:nth-child(even) { background:#7fb0ff }
-  .slot { position:relative; overflow:hidden; background:#000; border-radius:2px }
-  #L1 { display:grid; grid-template-columns:repeat(8, minmax(0,1fr)); gap:3px }
+  .slot, .dslot { position:relative; overflow:hidden; background:#000; border-radius:2px }
+  #L1 { display:grid; grid-template-columns:repeat(8, minmax(0,1fr)); gap:3px; --kx:.035; --ky:.02 }
   #L1 .slot { height:20px } #L1 .r { height:500px }
-  #L2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:3px 14px }
+  #L2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:3px 14px; --kx:.017; --ky:.0078 }
   #L2 .lane2 { display:grid; grid-template-columns:1.4em minmax(0,1fr); align-items:center; font-size:12px; color:var(--dim) }
   #L2 .slot { height:14px } #L2 .r { height:800px }
-  #podwrap { position:relative; overflow:hidden; height:0 }
-  #pod { display:grid; grid-template-columns:max-content; justify-content:start; position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(var(--kx)) }
+
+  /* The dice. A staircase of floats draws the curve; the yellow block is pushed down a random distance and gets
+     whatever room is left beside the step it lands on. The bar on top is as wide as the temperature. */
+  #DICE { display:flex; flex-wrap:wrap; gap:6px 4px; --kx:.0078; --ky:.0025 }
+  .dl { font-size:11px; color:var(--dim); text-align:center }
+  .dslot { width:30px; height:72px }
+  .tb { height:10em; aspect-ratio:var(--t); background:#ff9ecb }
+  .die { display:flow-root; min-width:0 }
+  .die > b { float:left; clear:left; height:100px; display:block; background:#2e2e36 }
+  .sp { display:block }
+  .pr { display:flow-root; height:100px; background:#ffd23f; outline:500px solid #ffd23f }
+
+  #podgrid { display:grid; grid-template-columns:1.4em minmax(0,1fr); font-size:11px; color:var(--dim); --kx:.0625; --dw:160px }
+  #podgrid > div:first-child > span { display:block; height:16px; line-height:16px }
+  #podwrap { position:relative; overflow:hidden; height:592px }
+  #pod { display:grid; grid-template-columns:max-content; justify-content:start; position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(var(--kx), .25) }
   .lane { display:flex; height:64px; align-items:center }
-  .lane > em { flex:none; width:90px; font:normal 46px ui-monospace, Menlo, monospace; color:#8b877d }
-  .lane > b { flex:none; height:44px; background:var(--cool); display:block; border-radius:0 8px 8px 0 }
+  .lane > b { flex:none; height:44px; background:var(--cool); display:block }
   .lane > s { flex:1 1 0; min-width:0; height:44px; container-type:inline-size; position:relative; display:block }
-  .lane > s > u { position:absolute; left:10px; top:2px; width:0; height:0; display:block; background:#ffd23f; border-radius:50% }
+  .lane > s > u { position:absolute; left:var(--dw); top:2px; width:0; height:0; display:block; background:#ffd23f; border-radius:50% }
   /* The largest bar fills the shared column, so its leftover space is zero wide: only there does the marker get a size. */
-  @container (max-width: 0.001px) { #pod.t0 .lane > s > u { width:40px; height:40px } #pod.t1 .lane > s > u { width:41px; height:40px } }
-  @media (max-width:700px) { #L1 { grid-template-columns:repeat(4, minmax(0,1fr)) } #L2 { grid-template-columns:minmax(0,1fr) } }
+  @container (max-width: 0.001px) { #pod.t0 .lane > s > u { width:var(--dw); height:40px } #pod.t1 .lane > s > u { width:var(--dw); height:41px } }
+  @media (max-width:700px) { #L1 { grid-template-columns:repeat(4, minmax(0,1fr)); --kx:.022 } #L2 { grid-template-columns:minmax(0,1fr); --kx:.0107 } #podgrid { --kx:.028; --dw:357px } }
 </style>
 <style id="gen"></style>
 </head>
@@ -45,8 +60,8 @@
 <main>
 <p class="crumb"><a href="../">Gradient Decent</a> / layout</p>
 <h1><span>Can page layout run a language model?</span></h1>
-<p class="lede">The same tiny Shakespeare model as the <a href="../css/">css page</a>, with no arithmetic written anywhere. Every number is the size of a box. Multiplying is <code>aspect-ratio</code>, adding is boxes in a row, subtracting is the space left over, and finding the largest is a grid column. The page's layout engine does the sums because it has to put the boxes somewhere.</p>
-<p class="answer" id="answer">Yes. About 35,000 boxes get laid out for every character, and the widths that come out match a plain JavaScript run of the same weights closely enough to pick the same character. In headless Chrome the dot landed on the same character as plain JavaScript 20 times out of 20, with scores within 0.006. It is also the slowest thing in this collection by a long way: about 650 ms a character, some 18,000 times slower than the JavaScript loop, because laying out 35,000 boxes is a lot more work than 21,000 multiplies. The race below measures both on your machine.</p>
+<p class="lede">The same tiny Shakespeare model as the <a href="../css/">css page</a>, with no arithmetic written anywhere: no <code>calc()</code>, and no sums in the script. Every number is the size of a box. Multiplying is <code>aspect-ratio</code>, adding is boxes in a row, subtracting is the space left over, the dice are a staircase of floats, and finding the largest is a grid column. The page's layout engine does the sums because it has to put the boxes somewhere.</p>
+<p class="answer" id="answer">Yes. About 45,000 boxes get laid out for every character, and no script or <code>calc()</code> does any of the model's sums, including the dice. In headless Chrome the dot landed on the same character as plain JavaScript 20 times out of 20, with scores within 0.006. It is also the slowest thing in this collection by a long way: about 670 ms a character, more than 10,000 times slower than a JavaScript loop, because laying out 45,000 boxes is a lot more work than 21,000 multiplies. The race below measures both on your machine.</p>
 
 <section>
 <div class="bench">
@@ -57,19 +72,21 @@
 
 <div id="machine">
 <h2>The pick: 37 bars in one grid column. The longest one has no space left beside it, and that is where the dot appears.</h2>
-<div><div><div><div><div><div id="podwrap"><div id="pod" class="t0"></div></div></div></div></div></div></div>
+<div><div><div><div><div><div id="podgrid"><div id="podlab"></div><div id="podwrap"><div id="pod" class="t0"></div></div></div></div></div></div></div></div>
 <h2>Layer 2: one row per character. <span class="key" style="background:#ff5a36"></span>adds <span class="key" style="background:#3d7dff"></span>takes away <span class="key" style="background:var(--cool)"></span>what is left is the score</h2>
 <div><div><div id="L2"></div></div></div>
+<h2>The dice: one per character. <span class="key" style="background:#2e2e36"></span>the curve, drawn in floats <span class="key" style="background:#ffd23f"></span>dropped in at a random height <span class="key" style="background:#ff9ecb"></span>temperature</h2>
+<div id="DICE"></div>
 <h2>Layer 1: 192 neurons. Each strip is 145 boxes whose heights are the inputs and whose shapes are the weights.</h2>
 <div id="L1"></div>
 </div>
-<p class="note">This is the machine itself, shrunk with a CSS transform so it fits (transforms don't change layout), and cropped where a strip runs long. At full size a layer-1 strip is up to 5,000 pixels wide and the layer-2 boxes are up to 3,000 pixels tall.</p>
+<p class="note">This is the machine itself, shrunk with a CSS transform so it fits (transforms don't change layout), and cropped where a strip runs long. At full size a layer-1 strip is up to 5,000 pixels wide, a layer-2 row up to 80,000, and each die is 25,600 pixels tall.</p>
 </div>
 </section>
 
 <section>
 <h2 class="big">Race it in your browser</h2>
-<p class="section-lede">Runs 20 random 8-character contexts through both: the boxes, and a plain JavaScript loop over the same weights. Same as <code>window.selfTest()</code>.</p>
+<p class="section-lede">Runs 20 random 8-character contexts through both: the boxes, and a plain JavaScript loop over the same weights. That loop is the only place on the page where script multiplies, and it only runs here, as the checker. Same as <code>window.selfTest()</code>.</p>
 <button id="race" class="ghost" type="button" disabled>Race layout against JavaScript</button>
 <div class="metrics">
 <div class="metric"><span>Layout, per character</span><strong id="r-lay">–</strong></div>
@@ -81,43 +98,47 @@
 
 <section>
 <h2 class="big">How one character gets made</h2>
-<p class="section-lede">Eight steps. The script builds the boxes once, then only carries widths from one stage to the next and rolls the dice.</p>
+<p class="section-lede">Nine steps. The script writes the weights into boxes once, then only carries widths from one stage to the next.</p>
 <ol class="pipe">
-<li><span class="tag css">CSS</span><div><b>Embed.</b><p>The last 8 characters become class names. Each class sets lengths: "character 12 at position 3" is nine heights, such as <code>--p27: 412.3px</code>. A negative number goes in a second variable, because a box can't be less than nothing tall.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Embed.</b><p>The last 8 characters become class names. Each class sets lengths: "character 12 at position 3" is nine heights, such as <code>--p3_0: 1.61em</code>. A negative number goes in a second variable, because a box can't be less than nothing tall. One unit of the model is 1em, and the font size is 256 pixels.</p></div></li>
 <li><span class="tag layout">Layout</span><div><b>Multiply.</b><p>One box per weight. Its height is an input and its <code>aspect-ratio</code> is the weight, so layout has to make it input × weight wide. Nobody wrote a multiply.</p></div></li>
 <li><span class="tag layout">Layout</span><div><b>Add.</b><p>The boxes for one neuron sit side by side in a flex row. The row is as wide as all of them together, which is the sum. Terms that should count against the neuron go in a second row.</p></div></li>
 <li><span class="tag layout">Layout</span><div><b>Subtract and clamp.</b><p>Under the adding row, the taking-away row is placed in the same width, and a stretchy box gets whatever is left. That is the sum minus the rest. If the taking-away row is longer there is nothing left, and nothing is as low as a width goes, which is exactly ReLU.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Carry.</b><p>A <code>ResizeObserver</code> reports the 192 leftover widths and the script writes each one back as a height for layer 2. It copies the number; it does no sums.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Layer 2, and the dice.</b><p>The same three moves again, one row per character. Each row also gets a fixed box so no score falls below zero, and one random-width box. Adding the right kind of random amount to every score and taking the largest is the same as sampling from the model's odds.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Roll the dice.</b><p>Sampling needs a random amount with a particular shape added to every score. Each die is 256 floats stacked into a staircase that draws that shape. The script pushes a block down by a random whole number of steps, and layout squeezes the block into the room left beside the step it lands on. That width is the roll. The die's own width comes from a box whose <code>aspect-ratio</code> is the temperature, and the steps are percentages of it, so the same layout pass also multiplies the roll by the temperature.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Carry.</b><p>A <code>ResizeObserver</code> reports the 192 leftover widths and the 37 rolls, and the script writes each one back as a size for layer 2. It copies the number; it does no sums.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Layer 2.</b><p>The same three moves again, one row per character. Each row also gets a fixed box so no score falls below zero, and its roll.</p></div></li>
 <li><span class="tag layout">Layout</span><div><b>Find the largest.</b><p>The observer carries the 37 scores to 37 bars in one grid column. The column is as wide as the longest bar, so that bar is the only one with no room left beside it. A container query on that leftover room gives a dot a size only where the room is zero.</p></div></li>
 <li><span class="tag js">JS</span><div><b>Write.</b><p>The observer fires again, for the one dot that just appeared. Which dot it was is the character. Append it, change the class names, and wait for the next frame.</p></div></li>
 </ol>
 
 <h3 class="sub3">What a neuron is made of</h3>
-<pre>&lt;div class="n"&gt;                                  one grid column, as wide as its longest row
-  &lt;div class="row p"&gt;                            the adding row
-    &lt;i class="x27p" style="aspect-ratio:0.318"&gt;  height: var(--p27), so width = input 27 × 0.318
+<pre>&lt;div class="n"&gt;                                   one grid column, as wide as its longest row
+  &lt;div class="row p"&gt;                             the adding row
+    &lt;i class="x3_0p" style="aspect-ratio:0.318"&gt;  height: var(--p3_0), so width = that input × 0.318
     …144 more
   &lt;/div&gt;
   &lt;div class="d"&gt;
-    &lt;div class="r"&gt;&lt;/div&gt;                        flex: 1, min-width: 0. Its width is the answer
-    &lt;div class="row m"&gt;…&lt;/div&gt;                   the taking-away row, never shrinks
+    &lt;div class="r"&gt;&lt;/div&gt;                         flex: 1, min-width: 0. Its width is the answer
+    &lt;div class="row m"&gt;…&lt;/div&gt;                    the taking-away row, never shrinks
   &lt;/div&gt;
 &lt;/div&gt;</pre>
 <p class="note">Every forward pass happens inside one frame. The observer's callbacks run during layout, each one changes something deeper in the page, and the browser lays out again and calls back again until nothing moves.</p>
 
 <div class="split" style="margin-top:22px">
-<div><h3><span class="tag js">JS</span> the carrying</h3><ul>
-<li>Building the 35,000 boxes from the weights, once</li>
+<div><h3><span class="tag js">JS</span> what the script still does</h3><ul>
+<li>Writes each weight into a box as text. Which row it goes in is decided by whether the text starts with a minus sign</li>
 <li>Characters to class names</li>
-<li>Copying 192 + 37 widths from one stage to the next</li>
-<li>Rolling 37 random numbers (this uses <code>Math.log</code>)</li>
-<li>Appending the character the dot landed on</li></ul></div>
+<li>Copies 192 + 37 + 37 widths from one stage to the next</li>
+<li>Asks the browser for 37 random bytes and writes each one in front of <code>00px</code></li>
+<li>Appends the character the dot landed on</li>
+<li>Counts characters and runs a stopwatch for the readout</li>
+<li>The plain JavaScript model in the race, as the checker</li></ul></div>
 <div><h3><span class="tag layout">Layout</span> all of the arithmetic</h3><ul>
 <li>Every multiply (<code>aspect-ratio</code>)</li>
 <li>Every add (boxes in a flex row)</li>
 <li>Every subtract and both ReLUs (leftover space)</li>
 <li>Bias (a box of fixed size)</li>
+<li>The dice and the temperature (floats, percentages and one more <code>aspect-ratio</code>)</li>
 <li>Argmax (a grid column and a container query)</li></ul></div>
 </div>
 </section>
@@ -125,15 +146,17 @@
 <section>
 <h2 class="big">What it says</h2>
 <ul class="says">
-<li><strong>Layout is a calculator if you hold it right.</strong> It multiplies, adds, subtracts, clamps and finds a maximum without a single <code>calc()</code>. <span id="say-acc">Run the race for the numbers on your machine.</span></li>
-<li><strong>Sizes are fixed-point.</strong> Chrome lays out in 64ths of a pixel, so every box is rounded. One unit of the model is 256 pixels in layer 1 and 64 pixels in layer 2, which keeps the rounding well below the gaps between scores.</li>
+<li><strong>Layout is a calculator if you hold it right.</strong> It multiplies, adds, subtracts, clamps, looks a value up on a curve and finds a maximum without a single <code>calc()</code>. <span id="say-acc">Run the race for the numbers on your machine.</span></li>
+<li><strong>Floats are a lookup table.</strong> Any curve can be drawn as a staircase of floats, and a block dropped beside it reads off the value at that height. Here the curve is the one sampling needs, but it could be any function of one number.</li>
+<li><strong>Sizes are fixed-point.</strong> Chrome lays out in 64ths of a pixel, so every box is rounded. One unit of the model is 256 pixels, which keeps the rounding well below the gaps between scores.</li>
 <li><strong>The clamp is free.</strong> ReLU usually needs its own step. Here it falls out of the fact that a box can't have negative width, which is the same limit that makes negative numbers awkward everywhere else on this page.</li>
 <li><strong>The observer is the loop.</strong> Nothing polls. A character is finished when the browser has nothing left to resize.</li>
 </ul>
 <h3 class="sub3">Gotchas found on the way</h3>
 <ul class="says">
-<li>An <code>aspect-ratio</code> of 0 means "no ratio", so a weight of exactly zero has to be left out, not drawn.</li>
-<li>A <code>ResizeObserver</code> stays silent when a size doesn't change. If the same character wins twice its dot would not report, so the dot is 40 pixels on even steps and 41 on odd ones.</li>
+<li>An <code>aspect-ratio</code> of 0 means "no ratio", and the box ends up with no width. That happens to be the right answer for a weight of zero, and it is how temperature 0 turns the dice off.</li>
+<li>The dice have 256 faces, so the random amounts come in 256 sizes. The largest is about 6 units, where the true curve has no upper limit.</li>
+<li>A <code>ResizeObserver</code> stays silent when a size doesn't change. If the same character wins twice its dot would not report, so the dot is 40 pixels tall on even steps and 41 on odd ones.</li>
 <li>Within one frame the observer only reports on elements deeper in the page than the ones it just reported, so the stages have to be nested deeper and deeper in the markup.</li>
 <li>If a stage really doesn't change, nothing fires. A timer reads the dots directly after 700 ms; the race reports how often that happened.</li>
 <li>Only tried in Chrome.</li>
@@ -142,80 +165,77 @@
 </main>
 <script type="module">
 const $ = id => document.getElementById(id);
-const S1 = 256, S2 = 64, OFFSET = 12, G0 = 4;        // pixels per unit in each layer; boxes that keep scores above zero
 const M = await (await fetch('../css/model.json')).json();
-const VOCAB = M.vocab, V = VOCAB.length, CTX = M.ctx, E = M.E, H = M.H, IN = CTX * E;
-const px = v => (Math.round(v * 1e4) / 1e4) + 'px', show = c => c === '\n' ? '↵' : c === ' ' ? '␣' : c;
+const VOCAB = M.vocab, V = VOCAB.length, CTX = M.ctx;
+const show = c => c === '\n' ? '↵' : c === ' ' ? '␣' : c === '&' ? '&amp;' : c;
 
-// ---- stylesheet: the embedding table as lengths, and which variable sets each box's height
+// A weight becomes a box by being written down as text. A negative one goes in the other row, and that is decided
+// by looking for the minus sign. Nothing in this script multiplies, adds or scales, apart from the checker at the end.
+const neg = v => String(v).startsWith('-'), mag = v => neg(v) ? String(v).slice(1) : String(v);
+// The curve the dice need, as 256 float widths in percent. A constant table, like the weights (see the README).
+const CURVE = ['98.3071','96.3700','95.3232','94.5685','93.9652','93.4558','93.0111','92.6138','92.2528','91.9207','91.6121','91.3231','91.0507','90.7926','90.5467','90.3117','90.0862','89.8693','89.6600','89.4576','89.2614','89.0710','88.8858','88.7053','88.5293','88.3573','88.1891','88.0245','87.8631','87.7047','87.5492','87.3964','87.2462','87.0982','86.9525','86.8089','86.6673','86.5276','86.3897','86.2534','86.1187','85.9855','85.8538','85.7234','85.5944','85.4666','85.3399','85.2144','85.0899','84.9665','84.8440','84.7225','84.6018','84.4820','84.3630','84.2448','84.1273','84.0105','83.8944','83.7789','83.6640','83.5497','83.4360','83.3228','83.2100','83.0978','82.9860','82.8747','82.7638','82.6532','82.5430','82.4332','82.3237','82.2146','82.1057','81.9971','81.8887','81.7806','81.6727','81.5651','81.4576','81.3503','81.2432','81.1362','81.0294','80.9227','80.8161','80.7096','80.6032','80.4968','80.3905','80.2843','80.1781','80.0719','79.9657','79.8595','79.7533','79.6471','79.5408','79.4345','79.3281','79.2217','79.1151','79.0085','78.9017','78.7949','78.6879','78.5808','78.4735','78.3660','78.2584','78.1506','78.0426','77.9344','77.8259','77.7173','77.6084','77.4992','77.3898','77.2801','77.1701','77.0598','76.9492','76.8383','76.7271','76.6155','76.5035','76.3912','76.2785','76.1654','76.0518','75.9379','75.8235','75.7087','75.5934','75.4777','75.3614','75.2447','75.1274','75.0096','74.8912','74.7723','74.6528','74.5327','74.4121','74.2907','74.1688','74.0461','73.9228','73.7988','73.6741','73.5487','73.4224','73.2955','73.1677','73.0391','72.9097','72.7794','72.6483','72.5162','72.3832','72.2493','72.1144','71.9785','71.8416','71.7036','71.5645','71.4244','71.2830','71.1406','70.9969','70.8519','70.7057','70.5582','70.4094','70.2592','70.1075','69.9544','69.7998','69.6437','69.4860','69.3266','69.1655','69.0028','68.8382','68.6718','68.5035','68.3332','68.1609','67.9865','67.8100','67.6312','67.4502','67.2668','67.0809','66.8925','66.7014','66.5077','66.3111','66.1116','65.9090','65.7033','65.4943','65.2820','65.0661','64.8465','64.6231','64.3957','64.1642','63.9283','63.6879','63.4427','63.1926','62.9372','62.6765','62.4100','62.1375','61.8586','61.5731','61.2806','60.9807','60.6729','60.3567','60.0318','59.6974','59.3531','58.9980','58.6316','58.2529','57.8611','57.4551','57.0337','56.5958','56.1398','55.6642','55.1669','54.6459','54.0986','53.5222','52.9131','52.2673','51.5798','50.8448','50.0548','49.2006','48.2706','47.2496','46.1172','44.8456','43.3946','41.7041','39.6775','37.1446','33.7602','28.6322','17.6265'];
+const inputs = []; for (const s of Array(CTX).keys()) for (const k of M.emb[0].keys()) inputs.push(`${s}_${k}`);
+
+// ---- stylesheet: the embedding table as lengths, and which variable sizes each box
 let css = '';
-for (let s = 0; s < CTX; s++) for (let t = 0; t < V; t++) {
-  css += `.s${s}t${t}{`; for (let k = 0; k < E; k++) { const j = s * E + k, v = M.emb[t][k]; css += `--p${j}:${px(Math.max(v, 0) * S1)};--n${j}:${px(Math.max(-v, 0) * S1)};`; } css += '}';
-}
-for (let j = 0; j < IN; j++) css += `.x${j}p{height:var(--p${j})}.x${j}n{height:var(--n${j})}`;
-for (let j = 0; j < H; j++) css += `.h${j}{height:var(--h${j},0px)}`;
-for (let o = 0; o < V; o++) css += `.g${o}{width:var(--g${o},${G0 * S2}px)}.b${o}{width:var(--r${o},0px)}`;
+for (const s of Array(CTX).keys()) VOCAB.forEach((_, t) => { css += `.s${s}t${t}{`;
+  M.emb[t].forEach((v, k) => { css += `--p${s}_${k}:${neg(v) ? 0 : mag(v)}em;--n${s}_${k}:${neg(v) ? mag(v) : 0}em;`; }); css += '}'; });
+inputs.forEach(n => { css += `.x${n}p{height:var(--p${n})}.x${n}n{height:var(--n${n})}`; });
+M.b1.forEach((_, j) => { css += `.h${j}{height:var(--h${j},0px)}`; });
+VOCAB.forEach((_, o) => { css += `.g${o}{width:var(--g${o},0px)}.b${o}{width:var(--r${o},0px)}.y${o}{height:var(--y${o},0px)}`; });
 $('gen').textContent = css;
 
 // ---- the boxes
-const box = (cls, ratio) => `<i class="${cls}" style="aspect-ratio:${+ratio.toPrecision(6)}"></i>`;
+const box = (cls, w) => `<i class="${cls}" style="aspect-ratio:${mag(w)}"></i>`;
 const cell = (p, m) => `<div class="slot"><div class="n"><div class="row p">${p}</div><div class="d"><div class="r"></div><div class="row m">${m}</div></div></div></div>`;
-let boxes = 0, h1 = '';
-for (let j = 0; j < H; j++) {
-  let p = '', m = '';
-  for (let i = 0; i < IN; i++) { const w = M.W1[i][j], a = Math.abs(w); if (!a) continue; boxes += 2;
-    if (w > 0) { p += box(`x${i}p`, a); m += box(`x${i}n`, a); } else { p += box(`x${i}n`, a); m += box(`x${i}p`, a); } }
-  const b = M.b1[j], bias = b ? `<i style="height:${S1}px;aspect-ratio:${+Math.abs(b).toPrecision(6)}"></i>` : ''; if (b > 0) p += bias; else m += bias; boxes++;
-  h1 += cell(p, m);
-}
+let h1 = '';
+M.b1.forEach((b, j) => { let p = '', m = '';
+  inputs.forEach((n, i) => { const w = M.W1[i][j]; if (neg(w)) { p += box(`x${n}n`, w); m += box(`x${n}p`, w); } else { p += box(`x${n}p`, w); m += box(`x${n}n`, w); } });
+  if (neg(b)) m += box('one', b); else p += box('one', b); h1 += cell(p, m); });
 $('L1').innerHTML = h1;
 let h2 = '';
-for (let o = 0; o < V; o++) {
-  let p = `<i style="height:${S2}px;width:${OFFSET * S2}px"></i><i class="g${o}" style="height:${S2}px"></i>`, m = ''; boxes += 2;
-  for (let j = 0; j < H; j++) { const w = M.W2[j][o], a = Math.abs(w) * S2 / S1; if (!a) continue; boxes++; if (w > 0) p += box('h' + j, a); else m += box('h' + j, a); }
-  const b = M.b2[o], bias = b ? `<i style="height:${S2}px;aspect-ratio:${+Math.abs(b).toPrecision(6)}"></i>` : ''; if (b > 0) p += bias; else m += bias; boxes++;
-  h2 += `<div class="lane2"><span>${show(VOCAB[o])}</span>${cell(p, m)}</div>`;
-}
+VOCAB.forEach((c, o) => { let p = `<i class="off"></i><i class="one g${o}"></i>`, m = '';
+  M.b1.forEach((_, j) => { const w = M.W2[j][o]; if (neg(w)) m += box('h' + j, w); else p += box('h' + j, w); });
+  const b = M.b2[o]; if (neg(b)) m += box('one', b); else p += box('one', b);
+  h2 += `<div class="lane2"><span>${show(c)}</span>${cell(p, m)}</div>`; });
 $('L2').innerHTML = h2;
-$('pod').innerHTML = VOCAB.map((c, o) => `<div class="lane"><em>${show(c) === '&' ? '&amp;' : show(c)}</em><b class="b${o}"></b><s><u></u></s></div>`).join('');
+const stairs = CURVE.map(w => `<b style="width:${w}%"></b>`).join('');
+$('DICE').innerHTML = VOCAB.map((c, o) => `<div class="dl"><div class="dslot"><div class="dn"><div class="row"><i class="tb"></i></div><div class="die">${stairs}<div class="sp y${o}"></div><div class="pr"></div></div></div></div>${show(c)}</div>`).join('');
+$('podlab').innerHTML = VOCAB.map(c => `<span>${show(c)}</span>`).join('');
+$('pod').innerHTML = VOCAB.map((c, o) => `<div class="lane"><b class="b${o}"></b><s><u></u></s></div>`).join('');
 
 const machine = $('machine'), pod = $('pod');
-const r1 = [...document.querySelectorAll('#L1 .r')], r2 = [...document.querySelectorAll('#L2 .r')], dots = [...document.querySelectorAll('#pod u')];
-const kind = new Map(); r1.forEach((e, j) => kind.set(e, [1, j])); r2.forEach((e, o) => kind.set(e, [2, o])); dots.forEach((e, o) => kind.set(e, [3, o]));
-function fit() { // shrink each stage to fit its slot; purely visual
-  const w1 = $('L1').firstElementChild.clientWidth, w2 = document.querySelector('#L2 .slot').clientWidth, wp = $('podwrap').clientWidth;
-  $('L1').style.setProperty('--kx', w1 / 3600); $('L1').style.setProperty('--ky', 20 / 1000);
-  $('L2').style.setProperty('--kx', w2 / 7000); $('L2').style.setProperty('--ky', 14 / 1800);
-  const k = Math.min(0.28, wp / 2700); pod.style.setProperty('--kx', k); $('podwrap').style.height = (V * 64 * k) + 'px';
-}
-fit(); addEventListener('resize', fit);
+const r1 = [...document.querySelectorAll('#L1 .r')], r2 = [...document.querySelectorAll('#L2 .r')], rolls = [...document.querySelectorAll('.pr')], dots = [...document.querySelectorAll('#pod u')];
+const boxes = machine.querySelectorAll('i, .die > b').length;
+const kind = new Map(); r1.forEach((e, j) => kind.set(e, ['--h', j])); rolls.forEach((e, o) => kind.set(e, ['--g', o])); r2.forEach((e, o) => kind.set(e, ['--r', o])); dots.forEach((e, o) => kind.set(e, ['dot', o]));
 
 // ---- the courier: a ResizeObserver that copies widths from one stage into the next
-const scores = new Float64Array(V); let pending = null, stats = { byObserver: 0, byTimer: 0 };
+const scores = new Array(V).fill(0); let pending = null, stats = { byObserver: 0, byTimer: 0 };
 const ro = new ResizeObserver(entries => {
-  let hid = false, out = false, win = -1;
+  let out = false, win;
   for (const e of entries) {
     const [k, i] = kind.get(e.target), w = e.contentRect.width;
-    if (k === 1) { machine.style.setProperty('--h' + i, w + 'px'); hid = true; }
-    else if (k === 2) { scores[i] = w; pod.style.setProperty('--r' + i, w + 'px'); out = true; }
-    else if (w > 0 && (win < 0 || i < win)) win = i;
+    if (k === 'dot') { if (w && win === undefined) win = i; }
+    else if (k === '--r') { scores[i] = w; pod.style.setProperty(k + i, w + 'px'); out = true; }
+    else machine.style.setProperty(k + i, w + 'px');
   }
   if (!pending) return;
-  if (hid && !pending.rolled) { pending.rolled = true; pending.noise.forEach((g, o) => machine.style.setProperty('--g' + o, g + 'px')); }
   if (out) { pending.sawOut = true; pod.classList.toggle('t0'); pod.classList.toggle('t1'); }
-  if (win >= 0 && pending.sawOut) finish(win, 'byObserver');
+  if (win !== undefined && pending.sawOut) finish(win, 'byObserver');
 });
-function finish(win, how) { const p = pending; pending = null; clearTimeout(p.timer); stats[how]++; p.resolve({ win, scores: Array.from(scores, w => w / S2) }); }
-[...r1, ...r2, ...dots].forEach(e => ro.observe(e));
+function finish(win, how) { const p = pending; pending = null; clearTimeout(p.timer); stats[how]++; p.resolve({ win, widths: [...scores] }); }
+[...r1, ...rolls, ...r2, ...dots].forEach(e => ro.observe(e));
 
-// One forward pass: set the context, and the answer arrives through the observer.
+// One forward pass: set the context, the temperature and where each die's block drops in. The answer arrives through the observer.
 function forward(ctx, T) {
   return new Promise(resolve => {
-    const noise = Array.from({ length: V }, () => T ? Math.max(0, (G0 - T * Math.log(-Math.log(Math.min(0.999999, Math.max(1e-6, Math.random()))))) * S2) : G0 * S2);
-    pending = { resolve, noise, rolled: false, sawOut: false };
-    pending.timer = setTimeout(() => { if (!pending) return; pending.noise.forEach((g, o) => machine.style.setProperty('--g' + o, g + 'px'));
-      r1.forEach((e, j) => machine.style.setProperty('--h' + j, getComputedStyle(e).width)); r2.forEach((e, o) => { scores[o] = parseFloat(getComputedStyle(e).width); pod.style.setProperty('--r' + o, scores[o] + 'px'); });
-      finish(dots.findIndex(u => u.offsetWidth > 0), 'byTimer'); }, 700);
+    pending = { resolve, sawOut: false };
+    pending.timer = setTimeout(() => { if (!pending) return; const width = e => getComputedStyle(e).width;
+      r1.forEach((e, j) => machine.style.setProperty('--h' + j, width(e))); rolls.forEach((e, o) => machine.style.setProperty('--g' + o, width(e)));
+      r2.forEach((e, o) => { scores[o] = parseFloat(width(e)); pod.style.setProperty('--r' + o, width(e)); });
+      finish(dots.findIndex(u => u.offsetWidth), 'byTimer'); }, 700);
+    machine.style.setProperty('--t', T);
+    crypto.getRandomValues(new Uint8Array(V)).forEach((r, o) => machine.style.setProperty('--y' + o, r + '00px'));   // each step of the staircase is 100px tall
     machine.className = ctx.map((t, s) => `s${s}t${t}`).join(' ');
   });
 }
@@ -228,10 +248,10 @@ async function generate() {
   let toks = [...seed].map(c => VOCAB.indexOf(c)).filter(i => i >= 0); while (toks.length < CTX) toks.unshift(0);
   out.innerHTML = '<b></b>'; out.firstChild.textContent = seed; const gen = document.createTextNode(''); out.append(gen);
   $('stop').disabled = false; $('race').disabled = true; const t0 = performance.now();
-  for (let n = 1; n <= 400 && id === run; n++) {
-    const { win } = await forward(toks.slice(-CTX), +$('temp').value); if (id !== run) break;
+  while (gen.data.length < 400 && id === run) {
+    const { win } = await forward(toks.slice(-CTX), $('temp').value); if (id !== run) break;
     toks.push(win); gen.data += VOCAB[win];
-    $('stat').textContent = `${n} chars · ${((performance.now() - t0) / n).toFixed(0)} ms per char · ${boxes.toLocaleString()} boxes laid out each time`;
+    $('stat').textContent = `${gen.data.length} chars · ${((performance.now() - t0) / gen.data.length).toFixed(0)} ms per char · ${boxes.toLocaleString()} boxes laid out each time`;
     await frame();
   }
   if (id === run) { $('stop').disabled = true; $('race').disabled = false; }
@@ -239,21 +259,21 @@ async function generate() {
 $('f').addEventListener('submit', e => { e.preventDefault(); generate(); });
 $('stop').addEventListener('click', () => { run++; $('stop').disabled = true; $('race').disabled = false; });
 
-// ---- the plain JavaScript reference and the race
-const W1 = Float32Array.from(M.W1.flat()), W2 = Float32Array.from(M.W2.flat());
+// ---- THE CHECKER. Everything below is ordinary JavaScript arithmetic. It only runs in the race, to see whether the boxes got it right.
+const E = M.E, H = M.H, IN = CTX * E, W1 = Float32Array.from(M.W1.flat()), W2 = Float32Array.from(M.W2.flat());
 function ref(c) { const e = new Float32Array(IN); c.forEach((t, s) => e.set(M.emb[t], s * E)); const h = Float32Array.from(M.b1);
   for (let i = 0; i < IN; i++) { const x = e[i]; for (let j = 0; j < H; j++) h[j] += x * W1[i * H + j]; } for (let j = 0; j < H; j++) h[j] = Math.max(0, h[j]);
   const o = Float32Array.from(M.b2); for (let i = 0; i < H; i++) { const x = h[i]; for (let j = 0; j < V; j++) o[j] += x * W2[i * V + j]; } return Array.from(o); }
 async function race(n = 20) {
   run++; const ctxs = Array.from({ length: n }, () => Array.from({ length: CTX }, () => Math.floor(Math.random() * V)));
-  stats = { byObserver: 0, byTimer: 0 }; await forward(ctxs[n - 1], 0); await frame(); stats = { byObserver: 0, byTimer: 0 };
-  let t = performance.now(); const got = []; for (const c of ctxs) { got.push(await forward(c, 0)); await frame(); } const layMs = (performance.now() - t) / n;
+  await forward(ctxs[n - 1], '0'); await frame(); stats = { byObserver: 0, byTimer: 0 };
+  let t = performance.now(); const got = []; for (const c of ctxs) { got.push(await forward(c, '0')); await frame(); } const layMs = (performance.now() - t) / n;
   t = performance.now(); let k = 0; while (performance.now() - t < 300) { ref(ctxs[k % n]); k++; } const jsMs = (performance.now() - t) / k;
   let err = 0, agree = 0, pick = 0;
-  ctxs.forEach((c, i) => { const r = ref(c), top = r.indexOf(Math.max(...r));
-    // a score is its box width minus the two fixed boxes; boxes at zero width are scores too low to matter
-    got[i].scores.forEach((w, o) => { if (w > 0) err = Math.max(err, Math.abs(w - OFFSET - G0 - r[o])); });
-    if (got[i].scores.indexOf(Math.max(...got[i].scores)) === top) agree++; if (got[i].win === top) pick++; });
+  ctxs.forEach((c, i) => { const r = ref(c), top = r.indexOf(Math.max(...r)), w = got[i].widths;
+    // a score is its box width in ems, minus the 12em box that keeps it above zero; boxes at zero width are scores too low to matter
+    w.forEach((px, o) => { if (px > 0) err = Math.max(err, Math.abs(px / 256 - 12 - r[o])); });
+    if (w.indexOf(Math.max(...w)) === top) agree++; if (got[i].win === top) pick++; });
   return { layoutMs: layMs, jsMs, slower: layMs / jsMs, maxScoreError: +err.toFixed(4), widestBarAgrees: `${agree} of ${n}`, dotAgrees: `${pick} of ${n}`, ...stats, boxes };
 }
 window.selfTest = async n => { const r = await race(n); console.log(r); return r; };
