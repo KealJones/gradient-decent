@@ -15,14 +15,15 @@
   .card p { color:var(--dim); font-size:14px; margin:0 }
   .card .facts { font-size:12px; color:var(--dim); margin-top:auto; padding-top:8px; border-top:1px solid var(--line) }
   .tag.other { background:#b9b4a8 }
+  .tag.filter { background:#c9a2ff }
   .tag.audio { background:#8fb4ff }
 </style>
 </head>
 <body>
 <main>
   <h1><span>Gradient Decent</span></h1>
-  <p class="lede">Small language models run by the parts of a browser that were built for drawing and styling, not for maths. Canvas blend modes, CSS colours and transforms, the audio engine, and whatever else turns out to be able to multiply.</p>
-  <p class="answer">The name is the joke. Gradient descent is how a model gets trained. Nothing here is trained and nothing descends: these pages only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.</p>
+  <p class="lede">Small neural networks, mostly language models, run by the parts of a browser that were built for drawing and styling, not for maths. Canvas blend modes, CSS colours and transforms, SVG filters, the audio engine, and whatever else turns out to be able to multiply.</p>
+  <p class="answer">The name is the joke. Gradient descent is how a model gets trained. No page here trains anything and nothing descends: they only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.</p>
 
   <section>
     <h2 class="big">The experiments</h2>
@@ -34,6 +35,7 @@
       <a class="card" href="no-js/"><span class="tag css">CSS, no script</span><b>Can a page with no script write by itself?</b><p>The same Shakespeare babbler with the JavaScript taken out. The clock, the memory, the dice and the text are all CSS.</p><span class="facts">21K weights · a little under one character a second · Chrome and Edge only</span></a>
       <a class="card" href="cards/"><span class="tag css">CSS</span><b>Can CSS transforms multiply matrices?</b><p>The same Shakespeare babbler as a wall of tilting cards. Every neuron is a long list of <code>matrix3d()</code> functions and the answer is how far its card tips.</p><span class="facts">21K weights · 50 to 90 ms a character</span></a>
       <a class="card" href="audio/"><span class="tag audio">Audio</span><b>Can you listen to a model think?</b><p>The same Shakespeare babbler as a Web Audio graph. The weights are a sound file, each layer is a convolution reverb and ReLU is a distortion curve.</p><span class="facts">21K weights · 10 to 45 ms a character</span></a>
+      <a class="card" href="filter/"><span class="tag filter">SVG filter</span><b>Can a photo filter read handwriting?</b><p>Not a language model: a digit reader. Draw a digit and one SVG <code>&lt;filter&gt;</code> runs the whole network, with <code>feConvolveMatrix</code> for the layers and <code>feMorphology</code> for the max pooling.</p><span class="facts">10K weights · about 6 ms a digit</span></a>
     </div>
   </section>
 

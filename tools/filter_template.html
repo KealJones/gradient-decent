@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<!--
+  Gradient Decent / filter
+
+  A handwritten-digit classifier whose whole forward pass is one SVG <filter>.
+  This file is a template: tools/compile_filter.py fills in the placeholders and writes filter/index.html.
+
+    FILTER   the generated <filter id="net">, inside the hidden <svg> at the top of <body>
+    EXCERPT  a few real lines of it, shortened, shown on the page
+    META     sizes, in the script
+  (FILTER and EXCERPT are the name in an HTML comment, META in a JavaScript comment.)
+
+  Who does what:
+    Filter  every multiply, add, bias, clamp and max in all three layers
+    JS      turns your strokes into a 14x14 picture, draws it through the filter, reads ten pixels back
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filter · Gradient Decent</title>
+<meta name="description" content="A handwritten-digit classifier whose whole forward pass is one SVG filter: convolutions are feConvolveMatrix, max pooling is feMorphology, and the clamp on every colour is the activation function.">
+<link rel="stylesheet" href="../lib/page.css?v=5">
+<style>
+  .tag.filter { background:#7db4ff }
+
+  /* The drawing pad and the ten bars sit side by side, and stack when there's no room. */
+  .draw { display:flex; flex-wrap:wrap; gap:18px; align-items:flex-start }
+  .padwrap { flex:0 1 280px; min-width:200px }
+  #pad { display:block; width:100%; aspect-ratio:1; background:#000; border:1px solid var(--line); border-radius:8px; touch-action:none; cursor:crosshair }
+  .padwrap .row { display:flex; gap:8px; align-items:center; margin-top:8px }
+  .padwrap .row span { color:var(--dim); font-size:13px }
+  #bars { flex:1 1 180px; min-width:0; display:grid; gap:4px; align-content:start }
+  .bar { display:grid; grid-template-columns:1.2em minmax(0,1fr) 3.2em; gap:8px; align-items:center; font-size:14px; color:var(--dim) }
+  .bar i { display:block; height:16px; background:#1d1d23; border-radius:3px; overflow:hidden }
+  .bar i b { display:block; height:100%; width:0; background:#55555f }
+  .bar em { font-style:normal; font-variant-numeric:tabular-nums; text-align:right; font-size:12px }
+  .bar.top { color:var(--fg) } .bar.top i b { background:var(--cool) }
+
+  /* The stages: crops of the filter's one output picture, enlarged with hard pixel edges. */
+  .stage canvas { display:block; width:100%; height:auto; image-rendering:pixelated; background:#000; border:1px solid var(--line); border-radius:4px }
+  .stage h2:first-child { margin-top:0 }
+  #s-hid { height:20px }
+  .actual { display:flex; gap:12px; align-items:flex-start; margin-top:14px }
+  .actual canvas { flex:none; border:1px solid var(--line); image-rendering:pixelated }
+  .actual p { margin:0 }
+</style>
+</head>
+<body>
+
+<!-- The network. Nothing in here is drawn on its own: the script points a canvas at it with ctx.filter = 'url(#net)'. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<!--FILTER-->
+</svg>
+
+<main>
+<p class="crumb"><a href="../">Gradient Decent</a> / filter</p>
+<h1><span>Can a photo filter read handwriting?</span></h1>
+<p class="lede">A handwritten-digit classifier whose whole forward pass is one SVG <code>&lt;filter&gt;</code>, the thing meant for blurs and drop shadows. The convolutions are <code>feConvolveMatrix</code>, the max pooling is <code>feMorphology</code>, and the activation function is the clamp every colour gets for free. No WebGPU, no WebGL, no WASM.</p>
+<p class="answer">Yes. On the 10,000 MNIST test digits the filter gets 98.22% right and a plain JavaScript run of the same weights gets 98.24%. They give the same answer on 9,996 of them. The small gap is rounding: every picture inside a filter is 8 bits per channel, so every number in the network is rounded to one of 256 levels on the way through, and the network was trained expecting that. It's also slow: about 6 ms a digit, where a plain JavaScript loop is about 40 times faster in headless Chrome on a CPU. The race below measures your machine on 1,000 of those digits.</p>
+
+<section>
+<div class="bench">
+<h2 class="big">Run it</h2>
+<p class="section-lede">Draw one digit, 0 to 9, with the mouse or a finger. The filter runs on every stroke.</p>
+<div class="cols">
+<div>
+<div class="draw">
+<div class="padwrap">
+<canvas id="pad" width="280" height="280" aria-label="Drawing pad"></canvas>
+<div class="row"><button id="clear" class="ghost" type="button">Clear</button><span id="hint">An example. Start drawing to replace it.</span></div>
+</div>
+<div id="bars" aria-live="polite"></div>
+</div>
+<div id="stat"></div>
+</div>
+<div class="stage">
+<h2>What the network sees: your digit at 14×14, copied 8 times</h2>
+<canvas id="s-in" width="64" height="32"></canvas>
+<h2>After the 8 kernels: 8 feature maps</h2>
+<canvas id="s-conv" width="64" height="32"></canvas>
+<h2>After taking the largest value in every 3×3 window</h2>
+<canvas id="s-pool" width="64" height="32"></canvas>
+<h2>The 48 hidden units, one pixel each, 6 per feature map</h2>
+<canvas id="s-hid" width="48" height="1"></canvas>
+</div>
+</div>
+<div class="actual">
+<canvas id="net-out" width="64" height="98"></canvas>
+<p class="note">This is the filter's whole output at actual size, 64 by 98 pixels, from one <code>drawImage</code>. The four pictures above are parts of it, enlarged, and the ten bars are the red values of the ten pixels in its last row, divided by 255. Brighter means a bigger number; black is zero.</p>
+</div>
+</div>
+</section>
+
+<section>
+<h2 class="big">Race it in your browser</h2>
+<p class="section-lede">Runs 1,000 MNIST test digits the network never trained on through both engines: the filter, and a plain JavaScript loop over the same weights from <code>model.json</code>. Same as <code>window.selfTest()</code>.</p>
+<button id="race" class="ghost" type="button">Race the filter against JavaScript</button>
+<div class="metrics">
+<div class="metric"><span>Filter, per digit</span><strong id="r-filter">–</strong></div>
+<div class="metric"><span>JavaScript, per digit</span><strong id="r-js">–</strong></div>
+<div class="metric"><span>Filter is slower by</span><strong id="r-x">–</strong></div>
+<div class="metric"><span>Same answer</span><strong id="r-agree">–</strong></div>
+<div class="metric"><span>Filter got right</span><strong id="r-facc">–</strong></div>
+<div class="metric"><span>JavaScript got right</span><strong id="r-jacc">–</strong></div>
+<div class="metric"><span>Largest gap in a score</span><strong id="r-gap">–</strong></div>
+<div class="metric"><span>Same, if JavaScript rounds to 8 bits too</span><strong id="r-gap8">–</strong></div>
+</div>
+<p class="note">Scores run from 0 to 1, in steps of 1/255, which is 0.0039. The last number is the check that the filter is doing exactly this network and nothing else: when the JavaScript version rounds every layer to 8 bits the way the filter has to, the two should never be more than one step apart.</p>
+</section>
+
+<section>
+<h2 class="big">How one digit gets read</h2>
+<p class="section-lede">Seven steps. JavaScript does the first and the last, and none of the arithmetic. The five in the middle are <span data-k="primitives"></span> filter primitives holding <span data-k="weights"></span> weights.</p>
+<ol class="pipe">
+<li><span class="tag js">JS</span><div><b>Shrink the drawing.</b><p>The pad is 280 pixels wide and the network takes 14×14. Your strokes are kept as lines and drawn again small: scaled so the digit's longer side is 10 pixels, centred, with a line about 1.2 pixels thick. That's how MNIST digits sit in their frame. The small picture gets a 1-pixel black border, making a 16×16 tile, and is drawn onto a canvas through the filter.</p></div></li>
+<li><span class="tag filter">Filter</span><div><b>Copy.</b><p><code>feTile</code> repeats the tile 8 times in a 4×2 grid, one copy per kernel. The black borders keep the copies 2 pixels apart, which is exactly the zero padding a 5×5 kernel needs.</p></div></li>
+<li><span class="tag filter">Filter</span><div><b>Convolve.</b><p>Eight <code>feConvolveMatrix</code> primitives, each limited to its own copy, each with its own 5×5 kernel and <code>bias</code>. A filter's result is a colour, so anything below 0 becomes 0 and anything above 1 becomes 1. That clamp is the activation function, and it costs nothing.</p></div></li>
+<li><span class="tag filter">Filter</span><div><b>Max.</b><p><code>feMorphology</code> with <code>dilate</code> is meant for thickening text. What it does is replace each pixel with the largest value in the 3×3 around it, which is max pooling. One primitive does all 8 maps at once.</p></div></li>
+<li><span class="tag filter">Filter</span><div><b>Hidden layer.</b><p>48 units, 6 per map. A unit that looks at a whole 14×14 map is a 14×14 kernel that only needs working out at one pixel, so each is a <code>feConvolveMatrix</code> whose output area is 1×1. An <code>feOffset</code> then moves that pixel into a row with the other 47.</p></div></li>
+<li><span class="tag filter">Filter</span><div><b>Scores.</b><p>Ten more <code>feConvolveMatrix</code>, each a 48×1 kernel laid over the row of hidden units and worked out at one pixel. The result is ten grey pixels, one per digit.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Read back.</b><p>One <code>getImageData</code> on those ten pixels. The brightest one is the answer. There's no softmax: the network was trained to make the right pixel white and the rest black.</p></div></li>
+</ol>
+
+<h3 class="sub3">What the filter looks like</h3>
+<pre><!--EXCERPT--></pre>
+<p class="note">Real lines from this page's filter, with the long kernels cut short. The whole thing is <span data-k="kb"></span> KB; view the page source to read it. The kernels are written back to front because <code>feConvolveMatrix</code> turns them around before using them.</p>
+
+<div class="split" style="margin-top:22px">
+<div><h3><span class="tag js">JS</span> the bookkeeping</h3><ul>
+<li>Recording your strokes and redrawing them at 14×14</li><li>One <code>drawImage</code> with <code>ctx.filter = 'url(#net)'</code></li><li>Reading ten pixels back and picking the brightest</li><li>Copying parts of the output into the pictures on this page</li></ul></div>
+<div><h3><span class="tag filter">Filter</span> all of the maths</h3><ul>
+<li>Every multiply and add in all three layers (<code>feConvolveMatrix</code>)</li><li>The biases (its <code>bias</code> attribute)</li><li>The activation function (colours clamp to 0..1)</li><li>Max pooling (<code>feMorphology</code>)</li><li>Moving numbers to where the next layer reads them (<code>feTile</code>, <code>feOffset</code>, <code>feMerge</code>)</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">What it says</h2>
+<ul class="says">
+<li><strong>A filter is a small convolutional network already.</strong> Convolution, bias, a clamp and a max are all there as primitives. Nothing here is a trick on the scale of the CSS page; the primitives are used for what they do, just not for what they're for.</li>
+<li><strong>Everything is 8 bits, and that's fine if the network knows.</strong> Every primitive's result is rounded to one of 256 levels and clamped to 0..1. Training with the same rounding and clamping in place means the filter is the network, not an approximation of it: 98.22% against 98.24% without the rounding, on 10,000 test digits, and no score moved by more than 0.02.</li>
+<li><strong>The filter matches its own arithmetic exactly.</strong> A JavaScript version that rounds each layer to 8 bits gives the same answer as the filter on all 10,000 test digits, and no score differs by more than one step of 1/255. So the filter isn't roughly a neural network. It is this one.</li>
+<li><strong>It isn't fast.</strong> About 6 ms a digit in headless Chrome on a CPU, against about 0.16 ms for a plain JavaScript loop over the same weights. Merging the 48 <code>feOffset</code> primitives into 8 made no difference to the time.</li>
+<li><strong>The model is small and so is its idea of a digit.</strong> <span data-k="weights"></span> weights, trained on MNIST shrunk to 14×14. Apart from MNIST it has only been tried on strokes drawn by a script, not on many people's handwriting, so expect it to be wrong sometimes.</li>
+</ul>
+<h3 class="sub3">Gotchas found on the way</h3>
+<ul class="says">
+<li><strong>Pictures between primitives are 8 bits per channel</strong>, even when the canvas being drawn to is float16. Multiply by 0.01 in one primitive and by 100 in the next and 255 levels come back as 4.</li>
+<li><strong>Except when they aren't.</strong> Two <code>feColorMatrix</code> in a row are merged into one step and keep full precision between them, so the first precision test said everything was fine. Put any other primitive between them and it's 8 bits again.</li>
+<li><strong><code>feConvolveMatrix</code> stops at 256 kernel entries.</strong> A 17×16 kernel doesn't raise an error. The primitive is skipped and the picture passes through untouched. So no single kernel can see all 8 feature maps, which is why the hidden layer has 6 units per map and not 48 units that each see everything.</li>
+<li><strong>Kernels of 28 entries or more are stored as an 8-bit picture</strong>, stretched between the kernel's smallest and largest entry. Up to 27 they're exact. The big kernels here were trained on that 256-level grid, which makes the filter exact again.</li>
+<li><strong>The kernel is applied upside down and back to front</strong>, as the specification says (it's a true convolution). Every kernel in the filter is written in reverse.</li>
+<li><strong>A primitive only writes where its input was.</strong> An <code>feOffset</code> that moves one pixel somewhere else produced nothing at all until it was given its own <code>x</code>, <code>y</code>, <code>width</code> and <code>height</code>, because its output area defaults to its input's.</li>
+<li><strong>A kernel can only write inside itself.</strong> <code>targetX</code> has to be smaller than the kernel's width, so a hidden unit's pixel lands on the map it's looking at and needs an <code>feOffset</code> to get anywhere useful.</li>
+<li><strong><code>bias</code> is added everywhere</strong>, including the empty space between tiles, so every convolution is fenced in with <code>x</code>, <code>y</code>, <code>width</code> and <code>height</code>.</li>
+<li><strong>Filters work in linear light by default.</strong> Without <code>color-interpolation-filters="sRGB"</code> every number is bent through a gamma curve on the way in and back out: half of 200 came out as 147.</li>
+<li><strong>Only tried in headless Chrome 153 with no GPU</strong>, where filters run in software. The canvas asks for software drawing (<code>willReadFrequently</code>) to keep it that way, but a different browser, or a GPU path with different rounding, could give different numbers. The race above will show it if so.</li>
+</ul>
+</section>
+</main>
+
+<script>
+{
+  // Sizes filled in by tools/compile_filter.py: K kernels, M hidden units per kernel, a size x size input,
+  // tile x tile tiles, a w x h output picture with the hidden units in row hidY and the scores in row outY.
+  const META = /*META*/;
+  const { K, M, size: S, tile: T } = META;
+  const $ = id => document.getElementById(id);
+  for (const el of document.querySelectorAll('[data-k]')) el.textContent = META[el.dataset.k].toLocaleString();
+
+  // ===================================================================
+  // The forward pass: draw a 16x16 picture through the filter, read ten pixels
+  // ===================================================================
+  const input = document.createElement('canvas');          // the 16x16 tile: the 14x14 digit with a black border
+  input.width = input.height = T;
+  const ictx = input.getContext('2d', { willReadFrequently: true });
+
+  const net = $('net-out');                                 // the filter draws here: every stage, then the scores
+  const nctx = net.getContext('2d', { willReadFrequently: true });
+  nctx.filter = 'url(#net)';
+
+  // Returns the ten scores, each 0..1. This one drawImage is the whole network.
+  function runFilter() {
+    nctx.drawImage(input, 0, 0);
+    const px = nctx.getImageData(0, META.outY, 10, 1).data;
+    const scores = [];
+    for (let i = 0; i < 10; i++) scores.push(px[i * 4] / 255);
+    return scores;
+  }
+
+  // Put a 14x14 grey picture (one byte per pixel) into the input tile. Used for the test digits.
+  const tileData = ictx.createImageData(T, T);
+  function setInput(bytes) {
+    tileData.data.fill(0);
+    for (let i = 3; i < tileData.data.length; i += 4) tileData.data[i] = 255;
+    for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+      const o = ((y + 1) * T + x + 1) * 4, v = bytes[y * S + x];
+      tileData.data[o] = tileData.data[o + 1] = tileData.data[o + 2] = v;
+    }
+    ictx.putImageData(tileData, 0, 0);
+  }
+  // The input tile's 14x14 as bytes, for the JavaScript reference.
+  function getInput() {
+    const d = ictx.getImageData(1, 1, S, S).data, out = new Uint8Array(S * S);
+    for (let i = 0; i < out.length; i++) out[i] = d[i * 4];
+    return out;
+  }
+
+  // ===================================================================
+  // The drawing pad
+  // ===================================================================
+  const pad = $('pad'), pctx = pad.getContext('2d');
+  let strokes = [], example = true, drawing = false, queued = false;
+
+  function paintPad() {
+    pctx.clearRect(0, 0, pad.width, pad.height);
+    pctx.lineWidth = 16; pctx.lineCap = pctx.lineJoin = 'round'; pctx.strokeStyle = example ? '#8b877d' : '#ece8df';
+    trace(pctx);
+  }
+  function trace(ctx) {
+    for (const s of strokes) {
+      ctx.beginPath(); ctx.moveTo(s[0][0], s[0][1]);
+      for (const p of s) ctx.lineTo(p[0], p[1]);
+      ctx.stroke();
+    }
+  }
+
+  // Redraw the strokes small: the digit's longer side becomes 10 pixels, centred in the 14x14.
+  function shrink() {
+    ictx.setTransform(1, 0, 0, 1, 0, 0);
+    ictx.fillStyle = '#000'; ictx.fillRect(0, 0, T, T);
+    const pts = strokes.flat();
+    if (!pts.length) return false;
+    const xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const scale = 10 / Math.max(x1 - x0, y1 - y0, 70);    // a dot or a tiny scribble isn't blown up to full size
+    ictx.save();
+    ictx.beginPath(); ictx.rect(1, 1, S, S); ictx.clip();  // keep the 1-pixel border black
+    ictx.setTransform(scale, 0, 0, scale, T / 2 - (x0 + x1) / 2 * scale, T / 2 - (y0 + y1) / 2 * scale);
+    ictx.lineWidth = 1.2 / scale; ictx.lineCap = ictx.lineJoin = 'round'; ictx.strokeStyle = '#fff';
+    trace(ictx);
+    ictx.restore();
+    return true;
+  }
+
+  // ===================================================================
+  // Showing it: bars, and crops of the filter's output
+  // ===================================================================
+  $('bars').innerHTML = Array.from({ length: 10 }, (_, i) => `<div class="bar"><span>${i}</span><i><b></b></i><em></em></div>`).join('');
+  const bars = [...$('bars').children];
+  function showScores(scores) {
+    const top = scores ? scores.indexOf(Math.max(...scores)) : -1;
+    bars.forEach((el, i) => {
+      el.classList.toggle('top', i === top && scores[i] > 0);
+      el.querySelector('b').style.width = scores ? (scores[i] * 100).toFixed(1) + '%' : '0';
+      el.querySelector('em').textContent = scores ? scores[i].toFixed(2) : '';
+    });
+  }
+  const crops = [['s-in', 0, 0, 4 * T, 2 * T], ['s-conv', 0, 2 * T, 4 * T, 2 * T], ['s-pool', 0, 4 * T, 4 * T, 2 * T], ['s-hid', 0, META.hidY, K * M, 1]]
+    .map(([id, x, y, w, h]) => ({ ctx: $(id).getContext('2d'), x, y, w, h }));
+  function showStages() { for (const c of crops) c.ctx.drawImage(net, c.x, c.y, c.w, c.h, 0, 0, c.w, c.h); }
+
+  function update() {
+    queued = false;
+    paintPad();
+    const any = shrink();
+    const t0 = performance.now();
+    const scores = runFilter();          // also run when empty, so the pictures clear
+    const ms = performance.now() - t0;
+    showStages();
+    showScores(any ? scores : null);
+    const top = scores.indexOf(Math.max(...scores));
+    $('stat').textContent = !any ? 'Nothing drawn yet.'
+      : scores[top] === 0 ? 'No score above zero. It has no idea.'
+      : `It says ${top}, with a score of ${scores[top].toFixed(2)}. The filter took ${ms.toFixed(1)} ms.`;
+  }
+  function queue() { if (!queued) { queued = true; requestAnimationFrame(update); } }
+
+  const at = e => { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * pad.width / r.width, (e.clientY - r.top) * pad.height / r.height]; };
+  pad.addEventListener('pointerdown', e => {
+    e.preventDefault();
+    if (example) { strokes = []; example = false; $('hint').textContent = ''; }
+    pad.setPointerCapture(e.pointerId); drawing = true; strokes.push([at(e)]); queue();
+  });
+  pad.addEventListener('pointermove', e => { if (drawing) { strokes[strokes.length - 1].push(at(e)); queue(); } });
+  for (const ev of ['pointerup', 'pointercancel']) pad.addEventListener(ev, () => { drawing = false; });
+  $('clear').addEventListener('click', () => { strokes = []; example = false; $('hint').textContent = ''; update(); });
+
+  // For the console and for tests: draw these strokes (lists of [x, y] in the pad's 280x280) and return the scores.
+  window.drawStrokes = s => { strokes = s; example = false; $('hint').textContent = ''; update(); return runFilter(); };
+
+  // The example the page opens with: a 2.
+  strokes = [[[88, 100], [96, 78], [116, 62], [142, 58], [166, 66], [180, 86], [180, 108], [166, 134], [140, 162], [112, 190], [90, 216], [120, 214], [160, 213], [198, 212]]];
+  update();
+
+  // ===================================================================
+  // Plain-JavaScript reference: the same network as ordinary loops
+  // ===================================================================
+  let ref = null;
+  async function reference() {
+    if (ref) return ref;
+    const m = await (await fetch('model.json')).json();
+    const w1 = Float64Array.from(m.conv.w.flat(2)), b1 = m.conv.b;        // K x 5 x 5
+    const w2 = Float64Array.from(m.hidden.w.flat(3)), b2 = m.hidden.b.flat();   // K x M x 14 x 14
+    const w3 = Float64Array.from(m.out.w.flat()), b3 = m.out.b;           // 10 x K*M
+    const N = S * S, x0 = new Float64Array(N), a = new Float64Array(K * N), p = new Float64Array(K * N), h = new Float64Array(K * M);
+    // bytes: 196 pixel values, 0..255. round8: round every layer's result to 8 bits, the way the filter has to.
+    ref = (bytes, round8 = false) => {
+      const act = round8 ? v => Math.round(Math.min(1, Math.max(0, v)) * 255) / 255 : v => Math.min(1, Math.max(0, v));
+      for (let i = 0; i < N; i++) x0[i] = bytes[i] / 255;
+      for (let k = 0; k < K; k++) for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {     // 5x5 kernels
+        let s = b1[k];
+        for (let dy = 0; dy < 5; dy++) { const yy = y + dy - 2; if (yy < 0 || yy >= S) continue;
+          for (let dx = 0; dx < 5; dx++) { const xx = x + dx - 2; if (xx < 0 || xx >= S) continue;
+            s += w1[(k * 5 + dy) * 5 + dx] * x0[yy * S + xx]; } }
+        a[k * N + y * S + x] = act(s);
+      }
+      for (let k = 0; k < K; k++) for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {     // 3x3 max
+        let mx = 0;
+        for (let yy = Math.max(0, y - 1); yy <= Math.min(S - 1, y + 1); yy++)
+          for (let xx = Math.max(0, x - 1); xx <= Math.min(S - 1, x + 1); xx++) mx = Math.max(mx, a[k * N + yy * S + xx]);
+        p[k * N + y * S + x] = mx;
+      }
+      for (let k = 0; k < K; k++) for (let j = 0; j < M; j++) {                                 // hidden units
+        let s = b2[k * M + j]; const o = (k * M + j) * N;
+        for (let i = 0; i < N; i++) s += w2[o + i] * p[k * N + i];
+        h[k * M + j] = act(s);
+      }
+      const out = [];
+      for (let c = 0; c < 10; c++) {                                                            // scores
+        let s = b3[c];
+        for (let i = 0; i < K * M; i++) s += w3[c * K * M + i] * h[i];
+        out.push(act(s));
+      }
+      return out;
+    };
+    return ref;
+  }
+
+  // ===================================================================
+  // The check and the race: held-out test digits through both
+  // ===================================================================
+  const argmax = v => v.indexOf(Math.max(...v));
+  async function selfTest(n = 1000, url = 'test.json') {
+    const js = await reference();
+    const t = await (await fetch(url)).json();
+    n = Math.min(n, t.n);
+    const raw = atob(t.pixels), N = S * S;
+    const imgs = Array.from({ length: n }, (_, i) => Uint8Array.from({ length: N }, (_, j) => raw.charCodeAt(i * N + j)));
+
+    let t0 = performance.now();
+    const fOut = imgs.map(im => { setInput(im); return runFilter(); });
+    const filterMs = (performance.now() - t0) / n;
+
+    // The JavaScript loop is too quick to time once, so keep going for at least half a second.
+    t0 = performance.now();
+    let runs = 0;
+    do { for (const im of imgs) js(im); runs += n; } while (performance.now() - t0 < 500);
+    const jsMs = (performance.now() - t0) / runs;
+
+    let fRight = 0, jRight = 0, agree = 0, gap = 0, gap8 = 0, agree8 = 0;
+    imgs.forEach((im, i) => {
+      const f = fOut[i], j = js(im), j8 = js(im, true), label = +t.labels[i];
+      if (argmax(f) === label) fRight++;
+      if (argmax(j) === label) jRight++;
+      if (argmax(f) === argmax(j)) agree++;
+      if (argmax(f) === argmax(j8)) agree8++;
+      for (let c = 0; c < 10; c++) { gap = Math.max(gap, Math.abs(f[c] - j[c])); gap8 = Math.max(gap8, Math.abs(f[c] - j8[c])); }
+    });
+    update();    // put the drawing back
+    return { images: n, filterRight: fRight, plainRight: jRight, sameAnswer: agree, largestScoreGap: +gap.toFixed(4),
+      sameAnswerRounded: agree8, largestScoreGapRounded: +gap8.toFixed(4),
+      filterMs: +filterMs.toFixed(3), jsMs: +jsMs.toFixed(5), slower: Math.round(filterMs / jsMs) };
+  }
+  window.selfTest = async (n, url) => { const r = await selfTest(n, url); console.log(r); return r; };
+
+  $('race').onclick = async e => {
+    const btn = e.target;
+    btn.disabled = true; btn.textContent = 'Racing…';
+    await new Promise(r => setTimeout(r, 30));
+    try {
+      const r = await selfTest();
+      const pct = k => (100 * k / r.images).toFixed(1) + '%';
+      $('r-filter').textContent = r.filterMs.toFixed(2) + ' ms';
+      $('r-js').textContent = r.jsMs.toFixed(3) + ' ms';
+      $('r-x').textContent = r.slower + '×';
+      $('r-agree').textContent = `${r.sameAnswer} of ${r.images}`;
+      $('r-facc').textContent = pct(r.filterRight);
+      $('r-jacc').textContent = pct(r.plainRight);
+      $('r-gap').textContent = r.largestScoreGap;
+      $('r-gap8').textContent = r.largestScoreGapRounded;
+      btn.textContent = 'Race again';
+    } catch (err) { btn.textContent = 'Could not run: ' + err.message; }
+    btn.disabled = false;
+  };
+}
+</script>
+</body>
+</html>

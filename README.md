@@ -1,15 +1,14 @@
 # Gradient Decent
 
-Small language models run by the parts of a browser that were built for drawing and styling, not for maths: canvas
-blend modes, CSS colours and transforms, the audio engine, and whatever else turns out to be able to multiply. No WebGPU, WebGL or WASM in the
+Small neural networks, mostly language models, run by the parts of a browser that were built for drawing and
+styling, not for maths: canvas blend modes, CSS colours and transforms, SVG filters, the audio engine, and whatever else turns out to be able to multiply. No WebGPU, WebGL or WASM in the
 forward pass.
 
-The name is the joke. Gradient descent is how a model gets trained. Nothing here is trained and nothing descends:
-these only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.
+The name is the joke. Gradient descent is how a model gets trained. No page here trains anything and nothing descends: they only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.
 
 Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
 
-There are six so far:
+There are seven so far:
 
 | | model | what it does |
 |---|---|---|
@@ -19,6 +18,7 @@ There are six so far:
 | [`no-js/`](no-js/) | the same 21K-weight model as `css/` | The same babble from a page with no script at all: the clock, memory, sampling and text are CSS too. |
 | [`cards/`](cards/) | the same model as `css/` | The same babble, with both matrix multiplies done by CSS transforms on a wall of tilting cards. |
 | [`audio/`](audio/) | the same model as `css/`, shipped as a 5-second float WAV | The same babble, with the whole forward pass in one Web Audio render per character. You can play the weights and each character's render. |
+| [`filter/`](filter/) | trained here on MNIST shrunk to 14×14, 10K weights, three layers | Reads a digit you draw, with the whole forward pass in one SVG `<filter>`. |
 
 ## The canvas ones
 
@@ -134,6 +134,46 @@ Rebuild the sound file from the CSS page's model:
 ```
 python3 tools/export_audio.py css/model.json audio/weights.wav audio/layout.json
 ```
+
+
+## The filter one
+
+[`filter/`](filter/) is a digit classifier, not a language model. Its forward pass is one SVG `<filter>` with
+126 primitives, applied to a canvas with `ctx.filter = 'url(#net)'`.
+
+- **A layer is `feConvolveMatrix`.** A kernel, a `bias`, and a result that is a colour, so it is clamped to 0..1.
+  The clamp is the activation function.
+- **Max pooling is `feMorphology`.** `dilate` with radius 1 is the largest value in each 3×3 window.
+- **A hidden unit is a big kernel worked out at one pixel**, by giving the primitive a 1×1 output area. `feOffset`
+  moves the pixel to where the next layer reads it, and `feTile` makes the 8 copies of the input.
+- **The ten scores are ten pixels.** The script draws the 14×14 input, and reads those pixels back.
+
+The network is 8 kernels of 5×5, a 3×3 max, 48 hidden units (6 per feature map) and 10 outputs: 10,154 weights.
+Filter pictures are 8 bits per channel, `feConvolveMatrix` takes at most 256 kernel entries, and Chrome stores
+kernels of 28 entries or more at 8 bits each. The network was trained with all of that in place, so the filter
+loses almost nothing. On the 10,000 MNIST test digits, in headless Chrome 153 on a CPU:
+
+| | of 10,000 |
+|---|---|
+| plain JavaScript, same weights | 9,824 (98.24%) |
+| the filter | 9,822 (98.22%) |
+| same answer from both | 9,996 |
+| largest difference in a score (scores are 0 to 1) | 0.019 |
+
+A JavaScript version that rounds each layer to 8 bits, as the filter has to, is never more than one 8-bit step
+(0.0039) from the filter and gives the same answer on all 10,000. The filter takes about 6 ms a digit, about 40 times
+slower than the plain JavaScript loop. `window.selfTest()` on the page runs the comparison on the first 1,000 test digits.
+Filters ran in software here; a GPU path was not tested and could round differently.
+
+Rebuild it (about 15 minutes on two CPU cores; the trainer downloads MNIST into the folder you name):
+
+```
+pip install torch numpy
+python3 tools/train_filter.py mnist 12      # writes filter/model.json and filter/test.json
+python3 tools/compile_filter.py filter/model.json tools/filter_template.html filter/index.html
+```
+
+`tools/check_filter.py` runs the self-test in headless Chrome against a local server.
 
 
 ## Run it
