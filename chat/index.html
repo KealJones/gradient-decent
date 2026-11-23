@@ -15,6 +15,18 @@
   .cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; align-items:start }
   .cols #layers { grid-template-columns:repeat(6, minmax(0,1fr)) }
   @media (max-width:900px){ .cols { grid-template-columns:minmax(0,1fr) } }
+  #pics { display:flex; flex-direction:column; gap:14px }
+  .prow { display:flex; gap:8px; align-items:flex-start }
+  .prow figure { margin:0; min-width:0 }
+  .prow button { display:block; width:100%; padding:0; border:1px solid var(--line); border-radius:3px; background:#000; overflow:hidden; cursor:zoom-in }
+  .prow canvas { display:block; width:100%; height:auto; image-rendering:pixelated }
+  .prow figcaption { font-size:10px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+  .plab { font-size:11px; color:var(--dim); margin-bottom:-8px }
+  dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:14px; max-width:94vw; max-height:92vh }
+  dialog::backdrop { background:rgba(0,0,0,.75) }
+  dialog .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:10px; font-size:13px; color:var(--dim) }
+  dialog .scroll { overflow:auto; max-width:90vw; max-height:76vh }
+  dialog canvas { display:block; image-rendering:pixelated }
 </style>
 </head>
 <body>
@@ -39,6 +51,12 @@
       <div id="layers"></div>
     </section>
   </div>
+  <h2 id="pics-h">The weights themselves. One pixel is one weight: red is positive, green is negative, brighter is bigger. Every picture in a row is drawn at the same scale. Click one to see it up close.</h2>
+  <div id="pics"></div>
+  <dialog id="zoom" aria-labelledby="zoom-t">
+    <div class="bar"><span id="zoom-t"></span><button type="button" class="ghost" id="zoom-x">Close</button></div>
+    <div class="scroll"><canvas id="zoom-i"></canvas></div>
+  </dialog>
 </main>
 <script type="module">
 import { Model, sample, selfTest } from '../lib/llama.js';
@@ -102,10 +120,30 @@ async function send(text) {
 }
 $('f').addEventListener('submit', e => { e.preventDefault(); const t = clean($('prompt').value); if (!busy && M && t) { $('prompt').value = ''; send(t); } });
 $('reset').addEventListener('click', () => { if (busy) return; history = []; fresh(0); $('log').textContent = ''; const h = document.createElement('div'); h.className = 'hint'; h.id = 'hint'; h.textContent = 'New chat. Say hi.'; $('log').append(h); $('stat').textContent = ''; });
+async function showPictures() {
+  const names = { q: 'query', k: 'key', v: 'value', o: 'attention out', gate: 'gate', up: 'up', down: 'down' };
+  const add = async (row, key, label, turn) => {
+    const e = M.bundle.mats[key], img = new Image(); img.src = e.png; await img.decode();
+    // Draw only the real columns (the file is padded to a power of two); the head is turned on its side to fit.
+    const c = document.createElement('canvas'), g = (c.width = turn ? e.n : e.m, c.height = turn ? e.m : e.n, c.getContext('2d'));
+    if (turn) { g.translate(0, e.m); g.rotate(-Math.PI / 2); }
+    g.drawImage(img, 0, 0, e.m, e.n, 0, 0, e.m, e.n);
+    const f = document.createElement('figure'), b = document.createElement('button'), cap = document.createElement('figcaption');
+    f.style.flex = `${c.width} 0 0`; b.type = 'button'; b.setAttribute('aria-label', `${label}, ${e.n} by ${e.m} weights, open larger`); cap.textContent = `${label} ${e.n}×${e.m}`;
+    b.addEventListener('click', () => { const z = $('zoom-i'), k = Math.max(1, Math.min(4, Math.floor(900 / c.width))); z.width = c.width; z.height = c.height; z.getContext('2d').drawImage(c, 0, 0); z.style.width = c.width * k + 'px';
+      $('zoom-t').textContent = `${label}: ${e.n} rows × ${e.m} columns, ${(e.n * e.m).toLocaleString()} weights${turn ? ', turned on its side' : ''}`; $('zoom').showModal(); });
+    b.append(c); f.append(b, cap); row.append(f);
+  };
+  const row = text => { const l = document.createElement('div'); l.className = 'plab'; l.textContent = text; const r = document.createElement('div'); r.className = 'prow'; $('pics').append(l, r); return r; };
+  for (let l = 0; l < M.L; l++) { const r = row(`Layer ${l + 1}`); for (const nm of Object.keys(names)) await add(r, l + '.' + nm, names[nm]); }
+  await add(row('Output head, which is also the word embeddings, turned on its side'), 'head', 'head', true);
+}
+$('zoom-x').addEventListener('click', () => $('zoom').close());
+$('zoom').addEventListener('click', e => { if (e.target === $('zoom')) $('zoom').close(); });
 window.selfTest = () => { const t = M.bundle.test; return { vsFloat: selfTest(M, t.ids, t.greedy, t.firstLogits), vs8bit: selfTest(M, t.ids, t.greedy8, t.firstLogits8), encodeOK: t.encode.map(c => JSON.stringify(encode(c.text)) === JSON.stringify(c.ids)) }; };
 
 Model.load('model.json', { tile, gradientCanvas: $('lut') })
-  .then(m => { M = m; vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i])); rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i])); fresh(0);
+  .then(m => { M = m; vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i])); rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i])); fresh(0); showPictures();
     banned = M.bundle.tok.vocab.flatMap((p, i) => i > 5 && /[<\n]/.test(p) ? [i] : []);
     $('go').disabled = false; $('reset').disabled = false; $('hint').textContent = 'Say hi.'; $('stat').textContent = `Ready. ${M.bundle.name}, loaded as ${M.count} pictures.`; })
   .catch(e => { $('hint').textContent = 'Could not start: ' + e.message + '. This needs a recent Chrome or Edge (float16 canvas).'; });
