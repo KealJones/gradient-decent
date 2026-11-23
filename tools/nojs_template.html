@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<!--
+  Gradient Decent / no-js
+
+  A tiny language model that writes by itself in a page with no script at all.
+  This file is a template: tools/compile_nojs.py fills in the stylesheet and the placeholders
+  and writes no-js/index.html. There is no script tag here and none is added.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>No script · Gradient Decent</title>
+  <meta name="description" content="A tiny language model that writes text by itself in a web page with no JavaScript: the clock, the memory, the maths, the sampling and the text are all CSS.">
+  <link rel="stylesheet" href="../lib/page.css?v=4">
+  <style>
+    #out { white-space: pre-wrap; min-height: 220px; padding: 16px; margin: 0 0 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); font: 18px/1.6 Georgia, "Iowan Old Style", serif; overflow-wrap: anywhere; }
+    #out::after { border-right: 2px solid var(--cool); padding-right: 1px; }
+    .ctl { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; border: 0; padding: 0; margin: 0 0 12px; font-size: 14px; }
+    .ctl label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+    .ctl .grp { color: var(--dim); }
+    .ctl input { accent-color: var(--cool); width: 16px; height: 16px; margin: 0; }
+    .sw { display: grid; gap: 3px; }
+    .sw i { display: block; aspect-ratio: 1; border-radius: 3px; }
+    #hv { grid-template-columns: repeat(32, minmax(0, 1fr)); }
+    #ov { grid-template-columns: repeat(13, minmax(0, 1fr)); max-width: 460px; }
+    #win { display: grid; grid-template-columns: repeat(auto-fill, minmax(26px, 1fr)); gap: 3px; }
+    #win i { font-style: normal; text-align: center; border-radius: 3px; padding: 3px 0; font-size: 14px; border: 1px solid var(--line); }
+    .tag.html { background: #b9b4a8; }
+    @media (max-width: 700px) { #hv { grid-template-columns: repeat(16, minmax(0, 1fr)); } }
+/*CSS*/
+  </style>
+</head>
+<body>
+<main>
+<p class="crumb"><a href="../">Gradient Decent</a> / no-js</p>
+<h1><span>Can a page with no script write by itself?</span></h1>
+<p class="lede">The same tiny Shakespeare model as the <a href="../css/">css page</a>, with the last of the JavaScript taken out. The clock, the memory, the maths, the dice and the text are all CSS. View source: there is no script tag.</p>
+<p class="answer">Yes. It types a little under one character a second with nothing running but the style engine. With the temperature at zero it writes exactly what a plain Python run of the same weights writes. It's slow because every tick makes the browser redo {{cssKB}} KB of stylesheet four times.</p>
+
+<section>
+<div class="bench machine">
+<h2 class="big">Watch it</h2>
+<fieldset class="ctl">
+<label><input type="checkbox" id="run" checked> Running</label>
+<span class="grp">Temperature</span>
+<label><input type="radio" name="T" id="T0"> 0, always the likeliest</label>
+<label><input type="radio" name="T" id="T1" checked> 0.6</label>
+<label><input type="radio" name="T" id="T2"> 1, anything goes</label>
+<span class="grp">Clock</span>
+<label><input type="radio" name="S" id="S0"> slow</label>
+<label><input type="radio" name="S" id="S1" checked> normal</label>
+<label><input type="radio" name="S" id="S2"> fast</label>
+</fieldset>
+<div class="clock"><div class="cpu" id="cpu">
+<div id="out" aria-live="off"></div>
+<h2>The character it just picked</h2><div id="win"><!--WIN--></div>
+<h2>Hidden layer: 192 neurons as 64 colours</h2><div class="sw" id="hv"><!--HV--></div>
+<h2>Logits: 37 characters as 13 colours</h2><div class="sw" id="ov"><!--OV--></div>
+</div></div>
+<p class="note">The checkbox and the radio buttons work without script too: <code>:has(#run:checked)</code> pauses the clock animation, and the radios set the temperature. It stops adding text after {{limit}} characters; reload to start again. If the text ever jumps back to the beginning, the browser skipped a beat: try the slow clock.</p>
+</div>
+</section>
+
+<section>
+<h2 class="big">How one character gets made</h2>
+<p class="section-lede">Eight steps per character. None of them is JavaScript.</p>
+<ol class="pipe">
+<li><span class="tag css">CSS</span><div><b>Tick.</b><p>An animation steps a number through 0, 1, 2, 3, once round every {{tick}} ms. That's the clock. Everything else happens because that number changed.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Remember.</b><p>A CSS property can't depend on itself, so "the last 8 characters" can't just be updated in place. Two 1 ms animations hold the state instead. Each is paused except during one clock phase: one copies the saved state to where the maths can read it, the other saves what the maths produced. This is the latch from Lyra Rebane's x86CSS.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Embed.</b><p><code>if(style(--ct3: 12): …)</code> picks the three colours for "character 12 at position 3". Eight positions make 24 colours.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Think.</b><p>Two layers of colour maths, the same as the css page: each 3×3 block of weights is a relative colour, sums are <code>color-mix()</code> trees, ReLU is <code>max(r, 0)</code>. Out come 13 colours holding 37 scores.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Roll the dice.</b><p>A seed goes through <code>sin()</code>, <code>mod()</code> and <code>log()</code> to make 39 random numbers, which are added to the scores, scaled by the temperature. Picking the largest noisy score is the same as sampling from the model's odds (the Gumbel trick).</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Find the largest.</b><p>Still in colours: the larger of two colours, lane by lane, is their average plus half their absolute difference. A small tree of those gives the top score.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Turn a colour into a number.</b><p>This was the hard part. CSS has no way to read a colour's channels as numbers. But subtracting the top score from every score leaves exactly one lane at zero, which can be turned into a pure red, green or blue, and <code>style(--w4: color(srgb 0 1 0))</code> can ask whether a colour is exactly that. Thirteen questions give the character's number.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Write.</b><p>The number picks a one-character string, which is appended to a property holding all the text so far. A <code>::after</code> shows it with <code>content</code>. The context shifts along by one, and the next tick starts.</p></div></li>
+</ol>
+
+<h3 class="sub3">Pieces of the stylesheet</h3>
+<pre><!--EXCERPT--></pre>
+<p class="note">Real lines from this page. The whole machine is {{cssKB}} KB of CSS and {{props}} registered properties, for {{weights}} weights.</p>
+
+<div class="split" style="margin-top:22px">
+<div><h3><span class="tag html">HTML</span> the parts that aren't CSS</h3><ul>
+<li>One checkbox and three radio buttons</li>
+<li>Empty elements for the squares</li>
+<li>The 37 characters in the "just picked" row</li>
+<li>This explanation</li></ul></div>
+<div><h3><span class="tag css">CSS</span> everything that happens</h3><ul>
+<li>The clock and the memory</li>
+<li>The embedding lookup and both layers</li>
+<li>The random numbers and the sampling</li>
+<li>Choosing the character and building the text</li>
+<li>Pause, and the temperature</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">What it says</h2>
+<ul class="says">
+<li><strong>A stylesheet can run a loop.</strong> Nothing here is unrolled ahead of time. The same {{cssKB}} KB of rules run again every tick, so it can write for as long as you leave the tab open.</li>
+<li><strong>It's exact.</strong> At temperature 0 the first characters match a plain Python run of the same weights, character for character.</li>
+<li><strong>The clock sets the speed, not the maths.</strong> Each of the four clock phases needs its own frame, and each frame makes the browser recompute the whole machine, which took about 100 ms in headless Chrome on a CPU. At {{tick}} ms a round it ran for 45 seconds without losing its place and wrote 0.8 characters a second. The fast setting only helps on a quicker machine.</li>
+<li><strong>Colours are easy to write and nearly impossible to read.</strong> Any number can go into a colour. Getting one back out only works by asking whether a colour equals a specific colour, so the answer has to be made to land on a small set of exact colours first.</li>
+</ul>
+<h3 class="sub3">Gotchas found on the way</h3>
+<ul class="says">
+<li>The state has to be saved in properties that are not registered with <code>@property</code>. Registered ones don't latch.</li>
+<li>A two-phase clock doesn't latch either. It needs rest phases in between, and if the browser is slow enough to skip a rest, the state resets to the start. That is why the rests are the longest part of each round, and why there is a slow setting.</li>
+<li>CSS has no random function in this Chrome (it arrives in Chrome 156), so the randomness is a seed stepped by <code>mod()</code> and scrambled with <code>sin()</code>.</li>
+<li>Only tried in Chrome. It needs <code>if()</code>, style queries, relative colours and unclamped colour channels.</li>
+</ul>
+</section>
+</main>
+</body>
+</html>

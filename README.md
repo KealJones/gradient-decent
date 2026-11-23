@@ -9,13 +9,14 @@ these only run models, and they do it with actual colours and gradients. So it's
 
 Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
 
-There are three so far. The first two run on the canvas; the third does it in CSS:
+There are four so far. The first two run on the canvas; the other two do it in CSS:
 
 | | model | what it does |
 |---|---|---|
 | [`chat/`](chat/) | [raincandy-u/TinyChat-1776K](https://huggingface.co/raincandy-u/TinyChat-1776K) (Apache 2.0), 1.8M weights, 3 layers | Multi-turn chat at the level of a three-year-old. No world knowledge. |
 | [`stories/`](stories/) | [hidude562/tiny-tiny-stories](https://huggingface.co/hidude562/tiny-tiny-stories) (MIT), 1M ternary weights, 5 layers | Wobbly children's stories from a prompt. |
 | [`css/`](css/) | trained here on lowercase Tiny Shakespeare, 21K weights, one hidden layer | Shakespeare-shaped babble, one character at a time, with the whole forward pass in a stylesheet. |
+| [`no-js/`](no-js/) | the same 21K-weight model as `css/` | The same babble from a page with no script at all: the clock, memory, sampling and text are CSS too. |
 
 ## The canvas ones
 
@@ -59,6 +60,23 @@ python3 tools/compile_css.py model.json tools/css_template.html css/index.html
 ```
 
 `tools/check_css.cjs` runs the self-test in headless Chrome against a local server.
+
+## The one with no script
+
+[`no-js/`](no-js/) is the css model with the remaining JavaScript replaced by CSS, so the page has no script tag
+and still writes text by itself.
+
+- **The clock is an animation** stepping a registered integer through 0, 1, 2, 3.
+- **The memory is a latch** made of two 1 ms animations that are paused except on one clock phase each (the trick
+  from Lyra Rebane's x86CSS). The last 8 characters, a random seed and the text so far live in it.
+- **Sampling is Gumbel noise** made from the seed with `sin()`, `mod()` and `log()`, added to the logits.
+- **Argmax is colour maths**, then `if(style(--w4: color(srgb 0 1 0)): …)` turns the winning colour into a number.
+  Asking whether a colour equals an exact colour is the only way found to get a number back out of one.
+- **The text** is a custom property that gets one more string each tick, shown with `content`.
+
+In headless Chrome 153 on a CPU it wrote 0.8 characters a second, and at temperature 0 all 37 characters of a
+45-second run matched a Python run of the same weights. `python3 tools/compile_nojs.py css/model.json
+no-js/index.html` rebuilds it from [`tools/nojs_template.html`](tools/nojs_template.html).
 
 ## Run it
 
