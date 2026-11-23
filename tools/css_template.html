@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CSS · Gradient Decent</title>
+<link rel="stylesheet" href="../lib/page.css">
+<style>
+#out{white-space:pre-wrap;min-height:220px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font:18px/1.6 Georgia,"Iowan Old Style",serif;margin:0 0 8px}
+#out b{font-weight:400;color:var(--dim)}
+label{color:var(--dim);font-size:13px;display:flex;gap:8px;align-items:center}
+.sw{display:grid;gap:3px}.sw i{display:block;aspect-ratio:1;border-radius:3px}
+#hv{grid-template-columns:repeat(32,minmax(0,1fr))}#ov{grid-template-columns:repeat(12,minmax(0,1fr));max-width:420px}
+details{margin-top:28px;color:var(--dim);font-size:14px;max-width:72ch}code{font-size:13px}
+/*CSS*/
+</style></head><body><main>
+<p class="crumb"><a href="../">Gradient Decent</a> / css</p>
+<h1><span>CSS</span></h1>
+<p class="sub">A tiny character-level language model whose entire forward pass is CSS colour math. Every activation is an <code>rgb()</code>, every weight block is a relative colour transform, every sum is a <code>color-mix()</code>. Trained on lowercase Shakespeare, 21K weights.</p>
+<form id="f"><input id="seed" type="text" value="first citizen:\n" aria-label="Prompt"><button id="go">Generate</button>
+<label>temperature <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.7"></label></form>
+<div id="m"><div id="out"></div><div id="stat"></div>
+<h2>Hidden layer: 192 neurons as 64 colours</h2><div class="sw" id="hv"></div>
+<h2>Logits: 36 characters as 12 colours</h2><div class="sw" id="ov"></div></div>
+<details><summary>How it works</summary>
+<p>Weights are baked into the stylesheet as literals. Activations live in registered <code>@property</code> custom properties of syntax <code>&lt;color&gt;</code>, which Chrome stores as unclamped floats, so each color is a 3-lane vector register (alpha clamps to 0–1, so it's useless). A 3×3 block of a weight matrix is one <code>color(from var(--x) srgb calc(r*a + g*b + b*c) …)</code>. Blocks are summed with a binary tree of <code>color-mix()</code> (which averages, so weights are pre-scaled by the leaf count). ReLU is <code>max(r,0)</code>. The browser's style engine runs both layers in one style recalc.</p>
+<p>JavaScript does three things: puts the last 8 characters into class names (the embedding lookup is CSS rules), reads 12 computed colors back, and samples one character. That's the clock tick.</p></details>
+</main>
+<script>
+const VOCAB=/*VOCAB*/, META=/*META*/, m=document.getElementById('m'), out=document.getElementById('out');
+for(const[id,n]of[['hv',META.nh],['ov',META.no]])document.getElementById(id).innerHTML='<i></i>'.repeat(n);
+const cs=getComputedStyle(m);
+const chan=s=>{const v=s.match(/-?[\d.]+(e-?\d+)?/g).map(Number);return s.startsWith('rgb(')?v.slice(0,3).map(x=>x/255):v.slice(0,3)};
+function logits(ctx){m.className=ctx.map((t,s)=>`s${s}t${t}`).join(' ');
+  const l=[];for(let i=0;i<META.no;i++)l.push(...chan(cs.getPropertyValue('--o'+i)));return l}
+function sample(l,T){const mx=Math.max(...l),p=l.map(x=>Math.exp((x-mx)/T)),z=p.reduce((a,b)=>a+b);let r=Math.random()*z;
+  for(let i=0;i<p.length;i++)if((r-=p[i])<=0)return i;return p.length-1}
+let run=0;
+async function generate(){const id=++run,seed=document.getElementById('seed').value.toLowerCase().replace(/\\n/g,'\n');
+  let toks=[...seed].map(c=>VOCAB.indexOf(c)).filter(i=>i>=0);while(toks.length<META.ctx)toks.unshift(0);
+  out.innerHTML='<b></b>';out.firstChild.textContent=seed;const gen=document.createTextNode('');out.append(gen);
+  let ms=0;for(let n=1;n<=400&&id===run;n++){const t0=performance.now();
+    const l=logits(toks.slice(-META.ctx));ms+=performance.now()-t0;
+    const t=sample(l,+document.getElementById('temp').value);toks.push(t);gen.data+=VOCAB[t];
+    document.getElementById('stat').textContent=`${n} chars · ${(ms/n).toFixed(1)} ms/char of CSS`;
+    await new Promise(r=>setTimeout(r,16))}}
+window.selfTest=async(n=40)=>{run++;const M=await (await fetch('model.json')).json();
+  const ref=c=>{const e=c.flatMap(t=>M.emb[t]),h=M.b1.map((b,j)=>Math.max(0,e.reduce((a,x,i)=>a+x*M.W1[i][j],b)));return M.b2.map((b,j)=>h.reduce((a,x,i)=>a+x*M.W2[i][j],b))};
+  let err=0,agree=0;for(let k=0;k<n;k++){const c=Array.from({length:META.ctx},()=>Math.floor(Math.random()*VOCAB.length)),a=logits(c),r=ref(c);
+    err=Math.max(err,...a.map((v,i)=>Math.abs(v-r[i])));if(a.indexOf(Math.max(...a))===r.indexOf(Math.max(...r)))agree++}
+  const res={maxLogitError:+err.toFixed(5),argmaxAgree:`${agree} of ${n}`};console.log(res);return res};
+document.getElementById('f').onsubmit=e=>{e.preventDefault();generate()};window.logits=logits;window.VOCAB=VOCAB;generate();
+</script></body></html>

@@ -10,15 +10,42 @@ no WASM. It's made of gradients, and it's decent. (Nothing is descended. This is
   back in a single `getImageData`.
 - **The activation function is a gradient.** SiLU is a canvas linear gradient, rendered once and eyedropped.
 
-There are two so far, both live under one page:
+There are three so far, all live under one page. The first two run on the canvas; the third does it in CSS:
 
 | | model | what it does |
 |---|---|---|
 | [`chat/`](chat/) | [raincandy-u/TinyChat-1776K](https://huggingface.co/raincandy-u/TinyChat-1776K) (Apache 2.0), 1.8M weights, 3 layers | Multi-turn chat at the level of a three-year-old. No world knowledge. |
 | [`stories/`](stories/) | [hidude562/tiny-tiny-stories](https://huggingface.co/hidude562/tiny-tiny-stories) (MIT), 1M ternary weights, 5 layers | Wobbly children's stories from a prompt. |
+| [`css/`](css/) | trained here on lowercase Tiny Shakespeare, 21K weights, one hidden layer | Shakespeare-shaped babble, one character at a time, with the whole forward pass in a stylesheet. |
 
 The shared engine is two files: [`lib/blend.js`](lib/blend.js) (the canvas matrix multiply and the gradient) and
 [`lib/llama.js`](lib/llama.js) (a small Llama-style forward pass built on it).
+
+## The CSS one
+
+[`css/`](css/) does the forward pass with no canvas and no script maths. Chrome stores a registered
+`@property --h3 { syntax: '<color>' }` as unclamped floats, so `color(srgb -4.8 7.12 52.5)` is a three-lane vector
+register. (Alpha clamps to 0 to 1, so it's no use as a lane.)
+
+- **A 3×3 weight block is a relative colour.** `color(from var(--x5) srgb calc(r*a + g*b + b*c) …)`: a colour matrix.
+- **The sum is a `color-mix()` tree.** Mixing averages, so the weights are pre-scaled by the number of leaves.
+- **ReLU is `max(r, 0)`.** Both layers resolve in one style recalc, chained through the registered properties.
+- **The embedding lookup is class names.** `.s3t12` sets the colours for "token 12 at position 3".
+
+The script only puts the last 8 characters into class names, reads 12 computed colours back and samples. In
+headless Chrome 153 it matches a plain JavaScript run of the same weights to 0.002 (top character 40 of 40) at
+about 31 ms per character. The stylesheet is 480 KB for 21K weights, which is the catch: CSS is a terrible weight
+format. `window.selfTest()` runs the comparison.
+
+Rebuild it with numpy only (about two minutes on a laptop CPU):
+
+```
+curl -L https://raw.githubusercontent.com/karpathy/char-rnn/master/data/tinyshakespeare/input.txt -o shakespeare.txt
+python3 tools/train_css.py shakespeare.txt 40000                 # writes model.json
+python3 tools/compile_css.py model.json tools/css_template.html css/index.html
+```
+
+`tools/check_css.cjs` runs the self-test in headless Chrome against a local server.
 
 ## Run it
 
@@ -26,7 +53,7 @@ The shared engine is two files: [`lib/blend.js`](lib/blend.js) (the canvas matri
 python3 -m http.server
 ```
 
-Then open http://localhost:8000. It needs a float16 2D canvas, so a recent Chrome or Edge.
+Then open http://localhost:8000. The canvas pages need a float16 2D canvas, so a recent Chrome or Edge. The CSS page needs relative colour syntax and registered properties; it's only been tried in Chrome.
 
 `window.selfTest()` in the console on either page compares the canvas against a plain numpy run of the same model.
 
