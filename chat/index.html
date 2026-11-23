@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chat · Gradient Decent</title>
 <meta name="description" content="A 1.8-million-weight chat model whose matrix multiplies are done by blending colours on a 2D canvas.">
-<link rel="stylesheet" href="../lib/page.css?v=5">
+<link rel="stylesheet" href="../lib/page.css?v=6">
 <style>
   #log { min-height:180px; max-height:40vh; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--bg); display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
   .msg { max-width:80%; padding:8px 12px; border-radius:12px; font:17px/1.45 Georgia, "Iowan Old Style", serif; white-space:pre-wrap; overflow-wrap:anywhere }
@@ -143,10 +143,10 @@ answer = last.getImageData(0, 0, 1, h)           // one pixel per output</pre>
 </section>
 </main>
 <script type="module">
-import { Model, sample, selfTest } from '../lib/llama.js?v=5';
-import { flexPicker, samplingTest } from '../lib/pick.js?v=5';
-import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js?v=5';
-import { clockRig, rigCheck, rigCost } from '../lib/clocks.js?v=5';
+import { Model, sample, selfTest } from '../lib/llama.js?v=6';
+import { flexPicker, samplingTest } from '../lib/pick.js?v=6';
+import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js?v=6';
+import { clockRig, rigCheck, rigCost } from '../lib/clocks.js?v=6';
 const $ = id => document.getElementById(id);
 const BOS = 1, END = 2, A = 3, B = 4, NL = 5;
 let M, vocab, rank, st, banned = [], busy = false, history = [];

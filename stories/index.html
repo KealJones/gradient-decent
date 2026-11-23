@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Stories · Gradient Decent</title>
 <meta name="description" content="A one-million-weight story model with ternary weights whose matrix multiplies are done by blending colours on a 2D canvas.">
-<link rel="stylesheet" href="../lib/page.css?v=5">
+<link rel="stylesheet" href="../lib/page.css?v=6">
 <style>
   #out { min-height:160px; white-space:pre-wrap; border:1px solid var(--line); border-radius:8px; padding:16px; font:18px/1.6 Georgia, "Iowan Old Style", serif; background:var(--bg) }
   #out .p { color:var(--dim) }
@@ -119,9 +119,9 @@ answer = last.getImageData(0, 0, 1, h)           // one pixel per output</pre>
 </section>
 </main>
 <script type="module">
-import { Model, sample, selfTest } from '../lib/llama.js?v=5';
-import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js?v=5';
-import { clockRig, rigCheck, rigCost } from '../lib/clocks.js?v=5';
+import { Model, sample, selfTest } from '../lib/llama.js?v=6';
+import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js?v=6';
+import { clockRig, rigCheck, rigCost } from '../lib/clocks.js?v=6';
 const $ = id => document.getElementById(id);
 let M, running = false;
 

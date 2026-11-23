@@ -24,13 +24,13 @@ h2 { font-size:13px; font-weight:600; color:var(--dim); margin:22px 0 8px }
 /* Clock faces for the rotary positions (lib/clocks.js). The dots are the elements whose positions get read back,
    so nothing here may have a transition or animation. */
 #clocks { display:flex; flex-wrap:wrap; gap:8px }
-.clock { width:var(--clock) }
+#clocks .clock { width:var(--clock) }
 .dial { position:relative; width:var(--clock); height:var(--clock); border:1px solid var(--line); border-radius:50%; background:var(--bg) }
 .dial .ctr, .dial .rot, .dial .pt { position:absolute; width:0; height:0 }
 .dial .ctr { left:50%; top:50% } .dial .rot, .dial .pt { left:0; top:0 }
 .dial .hand { position:absolute; left:-.5px; bottom:0; width:1px; height:var(--hand); background:var(--dim) }
 .pt.was { box-shadow:0 0 0 1px #8b877d } .pt.q { box-shadow:0 0 0 1.5px var(--hot) } .pt.k { box-shadow:0 0 0 1.5px var(--cool) }
-.clock .per { font-size:10px; color:var(--dim); text-align:center; margin-top:2px; white-space:nowrap }
+#clocks .clock .per { font-size:10px; color:var(--dim); text-align:center; margin-top:2px; white-space:nowrap }
 .swatch { display:inline-block; width:7px; height:7px; margin-right:4px; background:#8b877d } .swatch.q { background:var(--hot) } .swatch.k { background:var(--cool) }
 
 /* Explainer pages: a question, the answer, a bench to run it, then how it works. */
