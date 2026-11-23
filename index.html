@@ -15,7 +15,7 @@
   .card p { color:var(--dim); font-size:14px; margin:0 }
   .card .facts { font-size:12px; color:var(--dim); margin-top:auto; padding-top:8px; border-top:1px solid var(--line) }
   .tag.other { background:#b9b4a8 }
-  .tag.filter { background:#c9a2ff }
+  .tag.filter { background:#c9a2ff } .tag.layout { background:#ff9ecb }
   .tag.audio { background:#8fb4ff }
 </style>
 </head>
@@ -36,13 +36,14 @@
       <a class="card" href="cards/"><span class="tag css">CSS</span><b>Can CSS transforms multiply matrices?</b><p>The same Shakespeare babbler as a wall of tilting cards. Every neuron is a long list of <code>matrix3d()</code> functions and the answer is how far its card tips.</p><span class="facts">21K weights · 50 to 90 ms a character</span></a>
       <a class="card" href="audio/"><span class="tag audio">Audio</span><b>Can you listen to a model think?</b><p>The same Shakespeare babbler as a Web Audio graph. The weights are a sound file, each layer is a convolution reverb and ReLU is a distortion curve.</p><span class="facts">21K weights · 10 to 45 ms a character</span></a>
       <a class="card" href="filter/"><span class="tag filter">SVG filter</span><b>Can a photo filter read handwriting?</b><p>Not a language model: a digit reader. Draw a digit and one SVG <code>&lt;filter&gt;</code> runs the whole network, with <code>feConvolveMatrix</code> for the layers and <code>feMorphology</code> for the max pooling.</p><span class="facts">10K weights · about 6 ms a digit</span></a>
+      <a class="card" href="layout/"><span class="tag layout">Layout</span><b>Can page layout run a language model?</b><p>The same Shakespeare babbler with no arithmetic written anywhere. Every number is the size of a box: <code>aspect-ratio</code> multiplies, flex rows add, leftover space subtracts and clamps.</p><span class="facts">21K weights · 35,000 boxes · about 650 ms a character</span></a>
     </div>
   </section>
 
   <section>
     <h2 class="big">The rules</h2>
     <ul class="says">
-      <li><strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour function, a transform, a reverb, a gradient. Not WebGPU, WebGL or WASM, which is how everyone else does it.</li>
+      <li><strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour function, a transform, a reverb, a layout pass, a gradient. Not WebGPU, WebGL or WASM, which is how everyone else does it.</li>
       <li><strong>JavaScript is allowed for the bookkeeping.</strong> Every page says exactly which steps are script and which aren't.</li>
       <li><strong>It has to be a real model and it has to be right.</strong> Each one is checked against an ordinary implementation of the same weights, and the page lets you rerun that check.</li>
       <li><strong>It doesn't have to be fast.</strong> It won't be. Each page says how slow.</li>

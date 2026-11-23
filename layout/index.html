@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Layout · Gradient Decent</title>
+<meta name="description" content="A tiny language model whose arithmetic is done by page layout: aspect-ratio multiplies, flex rows add, leftover space subtracts and clamps, and a shared grid column finds the largest.">
+<link rel="stylesheet" href="../lib/page.css?v=5">
+<style>
+  #out { white-space:pre-wrap; min-height:150px; padding:16px; margin:0 0 6px; border:1px solid var(--line); border-radius:8px; background:var(--bg); font:18px/1.6 Georgia, "Iowan Old Style", serif; overflow-wrap:anywhere }
+  #out b { font-weight:400; color:var(--dim) }
+  label.t { color:var(--dim); font-size:13px; display:flex; gap:8px; align-items:center }
+  .tag.layout { background:#ff9ecb }
+  .key { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 5px 0 12px; vertical-align:-1px }
+
+  /* ---- The machine. Everything in here is real layout; the transforms only shrink it so it fits on screen. ---- */
+  .n { display:grid; grid-template-columns:max-content; justify-content:start; position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(var(--kx), var(--ky)) }
+  .row { display:flex; align-items:flex-start }
+  .row > i { flex:none; display:block }
+  .d { display:flex; align-items:flex-start }
+  .d > .m { flex:none }
+  .r { flex:1 1 0; min-width:0; background:var(--cool) }
+  .p > i { background:#ff5a36 } .p > i:nth-child(even) { background:#ffb347 }
+  .m > i { background:#3d7dff } .m > i:nth-child(even) { background:#7fb0ff }
+  .slot { position:relative; overflow:hidden; background:#000; border-radius:2px }
+  #L1 { display:grid; grid-template-columns:repeat(8, minmax(0,1fr)); gap:3px }
+  #L1 .slot { height:20px } #L1 .r { height:500px }
+  #L2 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:3px 14px }
+  #L2 .lane2 { display:grid; grid-template-columns:1.4em minmax(0,1fr); align-items:center; font-size:12px; color:var(--dim) }
+  #L2 .slot { height:14px } #L2 .r { height:800px }
+  #podwrap { position:relative; overflow:hidden; height:0 }
+  #pod { display:grid; grid-template-columns:max-content; justify-content:start; position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(var(--kx)) }
+  .lane { display:flex; height:64px; align-items:center }
+  .lane > em { flex:none; width:90px; font:normal 46px ui-monospace, Menlo, monospace; color:#8b877d }
+  .lane > b { flex:none; height:44px; background:var(--cool); display:block; border-radius:0 8px 8px 0 }
+  .lane > s { flex:1 1 0; min-width:0; height:44px; container-type:inline-size; position:relative; display:block }
+  .lane > s > u { position:absolute; left:10px; top:2px; width:0; height:0; display:block; background:#ffd23f; border-radius:50% }
+  /* The largest bar fills the shared column, so its leftover space is zero wide: only there does the marker get a size. */
+  @container (max-width: 0.001px) { #pod.t0 .lane > s > u { width:40px; height:40px } #pod.t1 .lane > s > u { width:41px; height:40px } }
+  @media (max-width:700px) { #L1 { grid-template-columns:repeat(4, minmax(0,1fr)) } #L2 { grid-template-columns:minmax(0,1fr) } }
+</style>
+<style id="gen"></style>
+</head>
+<body>
+<main>
+<p class="crumb"><a href="../">Gradient Decent</a> / layout</p>
+<h1><span>Can page layout run a language model?</span></h1>
+<p class="lede">The same tiny Shakespeare model as the <a href="../css/">css page</a>, with no arithmetic written anywhere. Every number is the size of a box. Multiplying is <code>aspect-ratio</code>, adding is boxes in a row, subtracting is the space left over, and finding the largest is a grid column. The page's layout engine does the sums because it has to put the boxes somewhere.</p>
+<p class="answer" id="answer">Yes. About 35,000 boxes get laid out for every character, and the widths that come out match a plain JavaScript run of the same weights closely enough to pick the same character. In headless Chrome the dot landed on the same character as plain JavaScript 20 times out of 20, with scores within 0.006. It is also the slowest thing in this collection by a long way: about 650 ms a character, some 18,000 times slower than the JavaScript loop, because laying out 35,000 boxes is a lot more work than 21,000 multiplies. The race below measures both on your machine.</p>
+
+<section>
+<div class="bench">
+<h2 class="big">Run it</h2>
+<form id="f"><input id="seed" type="text" value="first citizen:\n" aria-label="Prompt"><button id="go" disabled>Loading</button><button id="stop" type="button" class="ghost" disabled>Stop</button>
+<label class="t">temperature <input id="temp" type="range" min="0" max="1.5" step="0.05" value="0.7"></label></form>
+<div id="out" aria-live="off"></div><div id="stat"></div>
+
+<div id="machine">
+<h2>The pick: 37 bars in one grid column. The longest one has no space left beside it, and that is where the dot appears.</h2>
+<div><div><div><div><div><div id="podwrap"><div id="pod" class="t0"></div></div></div></div></div></div></div>
+<h2>Layer 2: one row per character. <span class="key" style="background:#ff5a36"></span>adds <span class="key" style="background:#3d7dff"></span>takes away <span class="key" style="background:var(--cool)"></span>what is left is the score</h2>
+<div><div><div id="L2"></div></div></div>
+<h2>Layer 1: 192 neurons. Each strip is 145 boxes whose heights are the inputs and whose shapes are the weights.</h2>
+<div id="L1"></div>
+</div>
+<p class="note">This is the machine itself, shrunk with a CSS transform so it fits (transforms don't change layout), and cropped where a strip runs long. At full size a layer-1 strip is up to 5,000 pixels wide and the layer-2 boxes are up to 3,000 pixels tall.</p>
+</div>
+</section>
+
+<section>
+<h2 class="big">Race it in your browser</h2>
+<p class="section-lede">Runs 20 random 8-character contexts through both: the boxes, and a plain JavaScript loop over the same weights. Same as <code>window.selfTest()</code>.</p>
+<button id="race" class="ghost" type="button" disabled>Race layout against JavaScript</button>
+<div class="metrics">
+<div class="metric"><span>Layout, per character</span><strong id="r-lay">–</strong></div>
+<div class="metric"><span>JavaScript, per character</span><strong id="r-js">–</strong></div>
+<div class="metric"><span>Layout is slower by</span><strong id="r-x">–</strong></div>
+<div class="metric"><span>Same top character / largest score gap</span><strong id="r-ok">–</strong></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">How one character gets made</h2>
+<p class="section-lede">Eight steps. The script builds the boxes once, then only carries widths from one stage to the next and rolls the dice.</p>
+<ol class="pipe">
+<li><span class="tag css">CSS</span><div><b>Embed.</b><p>The last 8 characters become class names. Each class sets lengths: "character 12 at position 3" is nine heights, such as <code>--p27: 412.3px</code>. A negative number goes in a second variable, because a box can't be less than nothing tall.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Multiply.</b><p>One box per weight. Its height is an input and its <code>aspect-ratio</code> is the weight, so layout has to make it input × weight wide. Nobody wrote a multiply.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Add.</b><p>The boxes for one neuron sit side by side in a flex row. The row is as wide as all of them together, which is the sum. Terms that should count against the neuron go in a second row.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Subtract and clamp.</b><p>Under the adding row, the taking-away row is placed in the same width, and a stretchy box gets whatever is left. That is the sum minus the rest. If the taking-away row is longer there is nothing left, and nothing is as low as a width goes, which is exactly ReLU.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Carry.</b><p>A <code>ResizeObserver</code> reports the 192 leftover widths and the script writes each one back as a height for layer 2. It copies the number; it does no sums.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Layer 2, and the dice.</b><p>The same three moves again, one row per character. Each row also gets a fixed box so no score falls below zero, and one random-width box. Adding the right kind of random amount to every score and taking the largest is the same as sampling from the model's odds.</p></div></li>
+<li><span class="tag layout">Layout</span><div><b>Find the largest.</b><p>The observer carries the 37 scores to 37 bars in one grid column. The column is as wide as the longest bar, so that bar is the only one with no room left beside it. A container query on that leftover room gives a dot a size only where the room is zero.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Write.</b><p>The observer fires again, for the one dot that just appeared. Which dot it was is the character. Append it, change the class names, and wait for the next frame.</p></div></li>
+</ol>
+
+<h3 class="sub3">What a neuron is made of</h3>
+<pre>&lt;div class="n"&gt;                                  one grid column, as wide as its longest row
+  &lt;div class="row p"&gt;                            the adding row
+    &lt;i class="x27p" style="aspect-ratio:0.318"&gt;  height: var(--p27), so width = input 27 × 0.318
+    …144 more
+  &lt;/div&gt;
+  &lt;div class="d"&gt;
+    &lt;div class="r"&gt;&lt;/div&gt;                        flex: 1, min-width: 0. Its width is the answer
+    &lt;div class="row m"&gt;…&lt;/div&gt;                   the taking-away row, never shrinks
+  &lt;/div&gt;
+&lt;/div&gt;</pre>
+<p class="note">Every forward pass happens inside one frame. The observer's callbacks run during layout, each one changes something deeper in the page, and the browser lays out again and calls back again until nothing moves.</p>
+
+<div class="split" style="margin-top:22px">
+<div><h3><span class="tag js">JS</span> the carrying</h3><ul>
+<li>Building the 35,000 boxes from the weights, once</li>
+<li>Characters to class names</li>
+<li>Copying 192 + 37 widths from one stage to the next</li>
+<li>Rolling 37 random numbers (this uses <code>Math.log</code>)</li>
+<li>Appending the character the dot landed on</li></ul></div>
+<div><h3><span class="tag layout">Layout</span> all of the arithmetic</h3><ul>
+<li>Every multiply (<code>aspect-ratio</code>)</li>
+<li>Every add (boxes in a flex row)</li>
+<li>Every subtract and both ReLUs (leftover space)</li>
+<li>Bias (a box of fixed size)</li>
+<li>Argmax (a grid column and a container query)</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">What it says</h2>
+<ul class="says">
+<li><strong>Layout is a calculator if you hold it right.</strong> It multiplies, adds, subtracts, clamps and finds a maximum without a single <code>calc()</code>. <span id="say-acc">Run the race for the numbers on your machine.</span></li>
+<li><strong>Sizes are fixed-point.</strong> Chrome lays out in 64ths of a pixel, so every box is rounded. One unit of the model is 256 pixels in layer 1 and 64 pixels in layer 2, which keeps the rounding well below the gaps between scores.</li>
+<li><strong>The clamp is free.</strong> ReLU usually needs its own step. Here it falls out of the fact that a box can't have negative width, which is the same limit that makes negative numbers awkward everywhere else on this page.</li>
+<li><strong>The observer is the loop.</strong> Nothing polls. A character is finished when the browser has nothing left to resize.</li>
+</ul>
+<h3 class="sub3">Gotchas found on the way</h3>
+<ul class="says">
+<li>An <code>aspect-ratio</code> of 0 means "no ratio", so a weight of exactly zero has to be left out, not drawn.</li>
+<li>A <code>ResizeObserver</code> stays silent when a size doesn't change. If the same character wins twice its dot would not report, so the dot is 40 pixels on even steps and 41 on odd ones.</li>
+<li>Within one frame the observer only reports on elements deeper in the page than the ones it just reported, so the stages have to be nested deeper and deeper in the markup.</li>
+<li>If a stage really doesn't change, nothing fires. A timer reads the dots directly after 700 ms; the race reports how often that happened.</li>
+<li>Only tried in Chrome.</li>
+</ul>
+</section>
+</main>
+<script type="module">
+const $ = id => document.getElementById(id);
+const S1 = 256, S2 = 64, OFFSET = 12, G0 = 4;        // pixels per unit in each layer; boxes that keep scores above zero
+const M = await (await fetch('../css/model.json')).json();
+const VOCAB = M.vocab, V = VOCAB.length, CTX = M.ctx, E = M.E, H = M.H, IN = CTX * E;
+const px = v => (Math.round(v * 1e4) / 1e4) + 'px', show = c => c === '\n' ? '↵' : c === ' ' ? '␣' : c;
+
+// ---- stylesheet: the embedding table as lengths, and which variable sets each box's height
+let css = '';
+for (let s = 0; s < CTX; s++) for (let t = 0; t < V; t++) {
+  css += `.s${s}t${t}{`; for (let k = 0; k < E; k++) { const j = s * E + k, v = M.emb[t][k]; css += `--p${j}:${px(Math.max(v, 0) * S1)};--n${j}:${px(Math.max(-v, 0) * S1)};`; } css += '}';
+}
+for (let j = 0; j < IN; j++) css += `.x${j}p{height:var(--p${j})}.x${j}n{height:var(--n${j})}`;
+for (let j = 0; j < H; j++) css += `.h${j}{height:var(--h${j},0px)}`;
+for (let o = 0; o < V; o++) css += `.g${o}{width:var(--g${o},${G0 * S2}px)}.b${o}{width:var(--r${o},0px)}`;
+$('gen').textContent = css;
+
+// ---- the boxes
+const box = (cls, ratio) => `<i class="${cls}" style="aspect-ratio:${+ratio.toPrecision(6)}"></i>`;
+const cell = (p, m) => `<div class="slot"><div class="n"><div class="row p">${p}</div><div class="d"><div class="r"></div><div class="row m">${m}</div></div></div></div>`;
+let boxes = 0, h1 = '';
+for (let j = 0; j < H; j++) {
+  let p = '', m = '';
+  for (let i = 0; i < IN; i++) { const w = M.W1[i][j], a = Math.abs(w); if (!a) continue; boxes += 2;
+    if (w > 0) { p += box(`x${i}p`, a); m += box(`x${i}n`, a); } else { p += box(`x${i}n`, a); m += box(`x${i}p`, a); } }
+  const b = M.b1[j], bias = b ? `<i style="height:${S1}px;aspect-ratio:${+Math.abs(b).toPrecision(6)}"></i>` : ''; if (b > 0) p += bias; else m += bias; boxes++;
+  h1 += cell(p, m);
+}
+$('L1').innerHTML = h1;
+let h2 = '';
+for (let o = 0; o < V; o++) {
+  let p = `<i style="height:${S2}px;width:${OFFSET * S2}px"></i><i class="g${o}" style="height:${S2}px"></i>`, m = ''; boxes += 2;
+  for (let j = 0; j < H; j++) { const w = M.W2[j][o], a = Math.abs(w) * S2 / S1; if (!a) continue; boxes++; if (w > 0) p += box('h' + j, a); else m += box('h' + j, a); }
+  const b = M.b2[o], bias = b ? `<i style="height:${S2}px;aspect-ratio:${+Math.abs(b).toPrecision(6)}"></i>` : ''; if (b > 0) p += bias; else m += bias; boxes++;
+  h2 += `<div class="lane2"><span>${show(VOCAB[o])}</span>${cell(p, m)}</div>`;
+}
+$('L2').innerHTML = h2;
+$('pod').innerHTML = VOCAB.map((c, o) => `<div class="lane"><em>${show(c) === '&' ? '&amp;' : show(c)}</em><b class="b${o}"></b><s><u></u></s></div>`).join('');
+
+const machine = $('machine'), pod = $('pod');
+const r1 = [...document.querySelectorAll('#L1 .r')], r2 = [...document.querySelectorAll('#L2 .r')], dots = [...document.querySelectorAll('#pod u')];
+const kind = new Map(); r1.forEach((e, j) => kind.set(e, [1, j])); r2.forEach((e, o) => kind.set(e, [2, o])); dots.forEach((e, o) => kind.set(e, [3, o]));
+function fit() { // shrink each stage to fit its slot; purely visual
+  const w1 = $('L1').firstElementChild.clientWidth, w2 = document.querySelector('#L2 .slot').clientWidth, wp = $('podwrap').clientWidth;
+  $('L1').style.setProperty('--kx', w1 / 3600); $('L1').style.setProperty('--ky', 20 / 1000);
+  $('L2').style.setProperty('--kx', w2 / 7000); $('L2').style.setProperty('--ky', 14 / 1800);
+  const k = Math.min(0.28, wp / 2700); pod.style.setProperty('--kx', k); $('podwrap').style.height = (V * 64 * k) + 'px';
+}
+fit(); addEventListener('resize', fit);
+
+// ---- the courier: a ResizeObserver that copies widths from one stage into the next
+const scores = new Float64Array(V); let pending = null, stats = { byObserver: 0, byTimer: 0 };
+const ro = new ResizeObserver(entries => {
+  let hid = false, out = false, win = -1;
+  for (const e of entries) {
+    const [k, i] = kind.get(e.target), w = e.contentRect.width;
+    if (k === 1) { machine.style.setProperty('--h' + i, w + 'px'); hid = true; }
+    else if (k === 2) { scores[i] = w; pod.style.setProperty('--r' + i, w + 'px'); out = true; }
+    else if (w > 0 && (win < 0 || i < win)) win = i;
+  }
+  if (!pending) return;
+  if (hid && !pending.rolled) { pending.rolled = true; pending.noise.forEach((g, o) => machine.style.setProperty('--g' + o, g + 'px')); }
+  if (out) { pending.sawOut = true; pod.classList.toggle('t0'); pod.classList.toggle('t1'); }
+  if (win >= 0 && pending.sawOut) finish(win, 'byObserver');
+});
+function finish(win, how) { const p = pending; pending = null; clearTimeout(p.timer); stats[how]++; p.resolve({ win, scores: Array.from(scores, w => w / S2) }); }
+[...r1, ...r2, ...dots].forEach(e => ro.observe(e));
+
+// One forward pass: set the context, and the answer arrives through the observer.
+function forward(ctx, T) {
+  return new Promise(resolve => {
+    const noise = Array.from({ length: V }, () => T ? Math.max(0, (G0 - T * Math.log(-Math.log(Math.min(0.999999, Math.max(1e-6, Math.random()))))) * S2) : G0 * S2);
+    pending = { resolve, noise, rolled: false, sawOut: false };
+    pending.timer = setTimeout(() => { if (!pending) return; pending.noise.forEach((g, o) => machine.style.setProperty('--g' + o, g + 'px'));
+      r1.forEach((e, j) => machine.style.setProperty('--h' + j, getComputedStyle(e).width)); r2.forEach((e, o) => { scores[o] = parseFloat(getComputedStyle(e).width); pod.style.setProperty('--r' + o, scores[o] + 'px'); });
+      finish(dots.findIndex(u => u.offsetWidth > 0), 'byTimer'); }, 700);
+    machine.className = ctx.map((t, s) => `s${s}t${t}`).join(' ');
+  });
+}
+const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+
+// ---- generate
+let run = 0;
+async function generate() {
+  const id = ++run, seed = $('seed').value.toLowerCase().replace(/\\n/g, '\n'), out = $('out');
+  let toks = [...seed].map(c => VOCAB.indexOf(c)).filter(i => i >= 0); while (toks.length < CTX) toks.unshift(0);
+  out.innerHTML = '<b></b>'; out.firstChild.textContent = seed; const gen = document.createTextNode(''); out.append(gen);
+  $('stop').disabled = false; $('race').disabled = true; const t0 = performance.now();
+  for (let n = 1; n <= 400 && id === run; n++) {
+    const { win } = await forward(toks.slice(-CTX), +$('temp').value); if (id !== run) break;
+    toks.push(win); gen.data += VOCAB[win];
+    $('stat').textContent = `${n} chars · ${((performance.now() - t0) / n).toFixed(0)} ms per char · ${boxes.toLocaleString()} boxes laid out each time`;
+    await frame();
+  }
+  if (id === run) { $('stop').disabled = true; $('race').disabled = false; }
+}
+$('f').addEventListener('submit', e => { e.preventDefault(); generate(); });
+$('stop').addEventListener('click', () => { run++; $('stop').disabled = true; $('race').disabled = false; });
+
+// ---- the plain JavaScript reference and the race
+const W1 = Float32Array.from(M.W1.flat()), W2 = Float32Array.from(M.W2.flat());
+function ref(c) { const e = new Float32Array(IN); c.forEach((t, s) => e.set(M.emb[t], s * E)); const h = Float32Array.from(M.b1);
+  for (let i = 0; i < IN; i++) { const x = e[i]; for (let j = 0; j < H; j++) h[j] += x * W1[i * H + j]; } for (let j = 0; j < H; j++) h[j] = Math.max(0, h[j]);
+  const o = Float32Array.from(M.b2); for (let i = 0; i < H; i++) { const x = h[i]; for (let j = 0; j < V; j++) o[j] += x * W2[i * V + j]; } return Array.from(o); }
+async function race(n = 20) {
+  run++; const ctxs = Array.from({ length: n }, () => Array.from({ length: CTX }, () => Math.floor(Math.random() * V)));
+  stats = { byObserver: 0, byTimer: 0 }; await forward(ctxs[n - 1], 0); await frame(); stats = { byObserver: 0, byTimer: 0 };
+  let t = performance.now(); const got = []; for (const c of ctxs) { got.push(await forward(c, 0)); await frame(); } const layMs = (performance.now() - t) / n;
+  t = performance.now(); let k = 0; while (performance.now() - t < 300) { ref(ctxs[k % n]); k++; } const jsMs = (performance.now() - t) / k;
+  let err = 0, agree = 0, pick = 0;
+  ctxs.forEach((c, i) => { const r = ref(c), top = r.indexOf(Math.max(...r));
+    // a score is its box width minus the two fixed boxes; boxes at zero width are scores too low to matter
+    got[i].scores.forEach((w, o) => { if (w > 0) err = Math.max(err, Math.abs(w - OFFSET - G0 - r[o])); });
+    if (got[i].scores.indexOf(Math.max(...got[i].scores)) === top) agree++; if (got[i].win === top) pick++; });
+  return { layoutMs: layMs, jsMs, slower: layMs / jsMs, maxScoreError: +err.toFixed(4), widestBarAgrees: `${agree} of ${n}`, dotAgrees: `${pick} of ${n}`, ...stats, boxes };
+}
+window.selfTest = async n => { const r = await race(n); console.log(r); return r; };
+$('race').addEventListener('click', async e => { e.target.disabled = true; e.target.textContent = 'Racing…'; const r = await race(20);
+  $('r-lay').textContent = r.layoutMs.toFixed(0) + ' ms'; $('r-js').textContent = (r.jsMs * 1000).toFixed(0) + ' µs'; $('r-x').textContent = Math.round(r.slower).toLocaleString() + '×'; $('r-ok').textContent = `${r.dotAgrees.replace(' of ', '/')} · ${r.maxScoreError.toFixed(3)}`;
+  $('say-acc').textContent = `Here the dot landed on the same character as plain JavaScript in ${r.dotAgrees} tries, the scores were within ${r.maxScoreError.toFixed(3)}, and layout took ${r.layoutMs.toFixed(0)} ms a character against ${(r.jsMs * 1000).toFixed(0)} µs.`;
+  e.target.disabled = false; e.target.textContent = 'Race again'; });
+
+await frame(); await frame();
+$('go').disabled = false; $('go').textContent = 'Generate'; $('race').disabled = false; $('stat').textContent = `Ready. ${boxes.toLocaleString()} boxes.`;
+</script>
+</body>
+</html>

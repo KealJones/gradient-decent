@@ -8,7 +8,7 @@ The name is the joke. Gradient descent is how a model gets trained. No page here
 
 Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
 
-There are seven so far:
+There are eight so far:
 
 | | model | what it does |
 |---|---|---|
@@ -19,6 +19,7 @@ There are seven so far:
 | [`cards/`](cards/) | the same model as `css/` | The same babble, with both matrix multiplies done by CSS transforms on a wall of tilting cards. |
 | [`audio/`](audio/) | the same model as `css/`, shipped as a 5-second float WAV | The same babble, with the whole forward pass in one Web Audio render per character. You can play the weights and each character's render. |
 | [`filter/`](filter/) | trained here on MNIST shrunk to 14×14, 10K weights, three layers | Reads a digit you draw, with the whole forward pass in one SVG `<filter>`. |
+| [`layout/`](layout/) | the same model as `css/` | The same babble with no arithmetic written anywhere: every number is the size of a box, and page layout does the sums. |
 
 ## The canvas ones
 
@@ -175,6 +176,26 @@ python3 tools/compile_filter.py filter/model.json tools/filter_template.html fil
 
 `tools/check_filter.py` runs the self-test in headless Chrome against a local server.
 
+
+## The layout one
+
+[`layout/`](layout/) runs the css model with no `calc()` and no script arithmetic. Every number is a box's size.
+
+- **Multiply is `aspect-ratio`.** A box whose height is an input and whose aspect ratio is a weight has to be
+  input × weight wide.
+- **Add is a flex row.** The boxes for one neuron sit side by side; the row's width is the sum. Terms that count
+  against the neuron go in a second row.
+- **Subtract and ReLU are leftover space.** The second row is placed inside the first one's width and a `flex: 1`
+  box gets what is left, which can't be less than zero.
+- **Argmax is a grid column.** 37 bars share one `max-content` column; a container query on the room beside each
+  bar gives a dot a size only where that room is zero.
+- **A `ResizeObserver` carries widths between stages** and reports which dot appeared. Its callbacks cascade inside
+  one frame, so a character is finished when the browser has nothing left to resize.
+
+Sampling is Gumbel noise as one random-width box per character. In headless Chrome 153 the dot landed on the same
+character as plain JavaScript 20 times out of 20 with scores within 0.006, at about 650 ms a character for 35,055
+boxes: roughly 18,000 times slower than the JavaScript loop. The page builds its boxes from `css/model.json` at
+load, so there is nothing to compile.
 
 ## Run it
 
