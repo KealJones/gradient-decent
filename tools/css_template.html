@@ -29,7 +29,7 @@ for(const[id,n]of[['hv',META.nh],['ov',META.no]])document.getElementById(id).inn
 const cs=getComputedStyle(m);
 const chan=s=>{const v=s.match(/-?[\d.]+(e-?\d+)?/g).map(Number);return s.startsWith('rgb(')?v.slice(0,3).map(x=>x/255):v.slice(0,3)};
 function logits(ctx){m.className=ctx.map((t,s)=>`s${s}t${t}`).join(' ');
-  const l=[];for(let i=0;i<META.no;i++)l.push(...chan(cs.getPropertyValue('--o'+i)));return l}
+  const l=[];for(let i=0;i<META.no;i++)l.push(...chan(cs.getPropertyValue('--o'+i)));return l.slice(0,VOCAB.length)}
 function sample(l,T){const mx=Math.max(...l),p=l.map(x=>Math.exp((x-mx)/T)),z=p.reduce((a,b)=>a+b);let r=Math.random()*z;
   for(let i=0;i<p.length;i++)if((r-=p[i])<=0)return i;return p.length-1}
 let run=0;

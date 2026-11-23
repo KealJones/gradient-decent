@@ -2,6 +2,9 @@
 import json, sys
 m = json.load(open(sys.argv[1]))
 V, CTX, E, H = len(m['vocab']), m['ctx'], m['E'], m['H']
+Vp = -(-V // 3) * 3  # pad the vocab to whole colours; padded logits get a huge negative bias
+m['W2'] = [row + [0.0] * (Vp - V) for row in m['W2']]
+m['b2'] = m['b2'] + [-1e4] * (Vp - V)
 f = lambda x: f'{x:.5g}'
 
 def pow2(n):
@@ -34,7 +37,7 @@ def layer(src, n_in, W, b, dst, n_out, relu):
         rules.append(f'--{dst}{j}:{expr};')
     return rules
 
-nx, nh, no = CTX * E // 3, H // 3, V // 3
+nx, nh, no = CTX * E // 3, H // 3, Vp // 3
 props = [f'@property --{p}{i}{{syntax:"<color>";inherits:true;initial-value:black}}'
          for p, n in (('x', nx), ('h', nh), ('o', no)) for i in range(n)]
 emb = []
@@ -44,7 +47,7 @@ for s in range(CTX):
         decl = ''.join(f'--x{s*E//3+k}:color(srgb {f(e[3*k])} {f(e[3*k+1])} {f(e[3*k+2])});' for k in range(E // 3))
         emb.append(f'.s{s}t{t}{{{decl}}}')
 net = '#m{' + ''.join(layer('x', CTX * E, m['W1'], m['b1'], 'h', H, True)
-                     + layer('h', H, m['W2'], m['b2'], 'o', V, False)) + '}'
+                     + layer('h', H, m['W2'], m['b2'], 'o', Vp, False)) + '}'
 swatch = ''.join(f'#hv i:nth-child({i+1}){{background:color(from var(--h{i}) srgb calc(r/4) calc(g/4) calc(b/4))}}' for i in range(nh))
 swatch += ''.join(f'#ov i:nth-child({i+1}){{background:color(from var(--o{i}) srgb calc(r/12 + .5) calc(g/12 + .5) calc(b/12 + .5))}}' for i in range(no))
 css = '\n'.join(props + emb + [net, swatch])
