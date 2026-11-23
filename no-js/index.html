@@ -27,6 +27,9 @@
     #win { display: grid; grid-template-columns: repeat(auto-fill, minmax(26px, 1fr)); gap: 3px; }
     #win i { font-style: normal; text-align: center; border-radius: 3px; padding: 3px 0; font-size: 14px; border: 1px solid var(--line); }
     .tag.html { background: #b9b4a8; }
+    /* Shown only where CSS if() is missing (anything but Chrome and Edge 137+), since nothing will move there. */
+    .unsupported { display: none; max-width: 72ch; margin: 14px 0 0; padding: 10px 14px; border: 1px solid var(--hot); border-radius: 8px; font-size: 15px; }
+    @supports not (width: if(style(--a: 1): 1px; else: 2px)) { .unsupported { display: block; } }
     @media (max-width: 700px) { #hv { grid-template-columns: repeat(16, minmax(0, 1fr)); } }
 @property --clock { syntax: "<integer>"; inherits: true; initial-value: 0; }
 @property --T { syntax: "<number>"; inherits: true; initial-value: 0.6; }
@@ -582,6 +585,8 @@
 <p class="lede">The same tiny Shakespeare model as the <a href="../css/">css page</a>, with the last of the JavaScript taken out. The clock, the memory, the maths, the dice and the text are all CSS. View source: there is no script tag.</p>
 <p class="answer">Yes. It types a little under one character a second with nothing running but the style engine. With the temperature at zero it writes exactly what a plain Python run of the same weights writes. It's slow because every tick makes the browser redo 537 KB of stylesheet four times.</p>
 
+<p class="unsupported"><strong>This one won't run in this browser.</strong> It depends on the CSS <code>if()</code> function, which only Chrome and Edge (137 or later) have so far, so in Safari and Firefox the text below just sits there. Nothing is broken on your end.</p>
+
 <section>
 <div class="bench machine">
 <h2 class="big">Watch it</h2>
@@ -668,7 +673,7 @@
 <li>The state has to be saved in properties that are not registered with <code>@property</code>. Registered ones don't latch.</li>
 <li>A two-phase clock doesn't latch either. It needs rest phases in between, and if the browser is slow enough to skip a rest, the state resets to the start. That is why the rests are the longest part of each round, and why there is a slow setting.</li>
 <li>CSS has no random function in this Chrome (it arrives in Chrome 156), so the randomness is a seed stepped by <code>mod()</code> and scrambled with <code>sin()</code>.</li>
-<li>Only tried in Chrome. It needs <code>if()</code>, style queries, relative colours and unclamped colour channels.</li>
+<li>Chrome and Edge only. It needs <code>if()</code>, which Safari and Firefox don't have yet, plus style queries, relative colours and unclamped colour channels. Reported not working in Safari on iOS.</li>
 </ul>
 </section>
 </main>
