@@ -20,3 +20,45 @@ h2 { font-size:13px; font-weight:600; color:var(--dim); margin:22px 0 8px }
 .tile canvas { width:100%; aspect-ratio:1; display:block; border-radius:4px; background:#000; image-rendering:pixelated }
 .tile div { font-size:10px; color:var(--dim); text-align:center; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
 @media (max-width:700px){ #layers { grid-template-columns:repeat(4, minmax(0,1fr)) } }
+
+/* Explainer pages: a question, the answer, a bench to run it, then how it works. */
+main > section { margin:0 0 56px }
+.lede { max-width:72ch; color:var(--dim); font-size:14px; margin:0 }
+.answer { max-width:72ch; margin:14px 0 28px; padding-left:14px; border-left:3px solid var(--cool); font-size:15px }
+h2.big { font-size:20px; color:var(--fg); margin:0 0 6px }
+.section-lede { max-width:72ch; color:var(--dim); font-size:14px; margin:0 0 16px }
+.bench { border:1px solid var(--line); border-radius:10px; background:var(--panel); padding:18px }
+.metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin-top:14px }
+.metric { border-top:1px solid var(--line); padding-top:8px } .metric span { display:block; color:var(--dim); font-size:12px }
+.metric strong { font-size:24px; font-variant-numeric:tabular-nums }
+.pipe { list-style:none; margin:0; padding:0; display:grid; gap:8px; counter-reset:s }
+.pipe li { display:grid; grid-template-columns:2.2em 4.6em minmax(0,1fr); gap:10px; align-items:start; border:1px solid var(--line); border-radius:8px; padding:10px 12px; background:var(--panel); counter-increment:s }
+.pipe li::before { content:counter(s); color:var(--dim) }
+.tag { font-size:12px; font-weight:600; border-radius:4px; padding:1px 6px; text-align:center; color:#111 }
+.tag.js { background:#ffd23f } .tag.css { background:var(--cool) } .tag.canvas { background:var(--hot) }
+.pipe b { font-weight:600 } .pipe p { margin:2px 0 0; color:var(--dim); font-size:14px }
+pre { overflow-x:auto; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px; font-size:12.5px; line-height:1.5; color:#cfcabf; white-space:pre-wrap; overflow-wrap:anywhere }
+.split { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px }
+.split > div { border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--panel) }
+.split h3 { margin:0 0 6px; font-size:15px } .split ul { margin:0; padding-left:18px; color:var(--dim); font-size:14px } .split li { margin:3px 0 }
+ul.says { padding-left:18px; max-width:78ch } ul.says li { margin:0 0 10px } ul.says strong { color:var(--fg) }
+.note { color:var(--dim); font-size:13px; margin:8px 0 0 }
+h3.sub3 { margin:22px 0 8px; font-size:15px }
+.cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; align-items:start }
+.cols #layers { grid-template-columns:repeat(6, minmax(0,1fr)) }
+
+/* The weight picture gallery. */
+.pics { display:flex; flex-direction:column; gap:14px }
+.prow { display:flex; gap:8px; align-items:flex-start }
+.prow figure { margin:0; min-width:0 }
+.prow button { display:block; width:100%; padding:0; border:1px solid var(--line); border-radius:3px; background:#000; overflow:hidden; cursor:zoom-in }
+.prow canvas { display:block; width:100%; height:auto; image-rendering:pixelated }
+.prow figcaption { font-size:10px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.plab { font-size:11px; color:var(--dim); margin-bottom:-8px }
+dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:14px; max-width:94vw; max-height:92vh }
+dialog::backdrop { background:rgba(0,0,0,.75) }
+dialog .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:10px; font-size:13px; color:var(--dim) }
+dialog .scroll { overflow:auto; max-width:90vw; max-height:76vh }
+dialog canvas { display:block; image-rendering:pixelated }
+@media (max-width:900px){ .cols { grid-template-columns:minmax(0,1fr) } }
+@media (max-width:700px){ .split { grid-template-columns:minmax(0,1fr) } .metrics { grid-template-columns:repeat(2,minmax(0,1fr)) } .pipe li { grid-template-columns:4.6em minmax(0,1fr) } .pipe li::before { display:none } }

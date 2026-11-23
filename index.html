@@ -4,23 +4,44 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gradient Decent</title>
+<meta name="description" content="Language models run by the parts of a browser that were built for drawing and styling, not maths: canvas blend modes, CSS colours and whatever else can be made to multiply.">
 <link rel="stylesheet" href="lib/page.css">
 <style>
-  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:14px; margin-top:8px }
-  .card { display:block; border:1px solid var(--line); border-radius:10px; padding:18px; background:var(--panel); text-decoration:none }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:14px }
+  .card { display:flex; flex-direction:column; gap:6px; border:1px solid var(--line); border-radius:10px; padding:18px; background:var(--panel); text-decoration:none }
   .card:hover { border-color:#55555f }
-  .card b { font-size:18px; font-weight:600 } .card p { color:var(--dim); font-size:14px; margin:6px 0 0 }
+  .card .tag { align-self:flex-start }
+  .card b { font-size:18px; font-weight:600 }
+  .card p { color:var(--dim); font-size:14px; margin:0 }
+  .card .facts { font-size:12px; color:var(--dim); margin-top:auto; padding-top:8px; border-top:1px solid var(--line) }
+  .tag.other { background:#b9b4a8 }
 </style>
 </head>
 <body>
 <main>
   <h1><span>Gradient Decent</span></h1>
-  <p class="sub">Language models that run on colour blending. Every matrix multiply is done on a 2D canvas: the weights are pictures, the multiply is a blend mode, the sum is an image being squashed, and the activation function is a gradient. It's made of gradients, and it's decent. Nothing is descended. The CSS one skips the canvas and does the same trick in the stylesheet: activations are colours, and the browser's style engine does the maths.</p>
-  <div class="cards">
-    <a class="card" href="chat/"><b>Chat</b><p>A 1.8-million-weight model that talks like a three-year-old and remembers the conversation.</p></a>
-    <a class="card" href="css/"><b>CSS</b><p>A 21,000-weight Shakespeare babbler whose whole forward pass is CSS colour math: <code>color-mix()</code> sums and relative-colour multiplies.</p></a>
-    <a class="card" href="stories/"><b>Stories</b><p>A one-million-weight model with ternary weights that writes wobbly children's stories.</p></a>
-  </div>
+  <p class="lede">Small language models run by the parts of a browser that were built for drawing and styling, not for maths. Canvas blend modes, CSS colours, and whatever else turns out to be able to multiply.</p>
+  <p class="answer">The name is the joke. Gradient descent is how a model gets trained. Nothing here is trained and nothing descends: these pages only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.</p>
+
+  <section>
+    <h2 class="big">The experiments</h2>
+    <p class="section-lede">Each page runs a real model, shows the browser feature doing the work, explains it step by step, and races it against a plain JavaScript loop so you can see what the trick costs.</p>
+    <div class="cards">
+      <a class="card" href="chat/"><span class="tag canvas">Canvas</span><b>Can a 2D canvas hold a conversation?</b><p>A chat model that talks like a three-year-old and remembers the conversation. The weights are pictures and the multiply is a blend mode.</p><span class="facts">1.8M weights · about 15 tokens a second</span></a>
+      <a class="card" href="stories/"><span class="tag canvas">Canvas</span><b>Can blend modes write a story?</b><p>A ternary-weight model that writes wobbly children's stories. Every weight is a red, green or black pixel.</p><span class="facts">1M weights · 20 to 30 tokens a second</span></a>
+      <a class="card" href="css/"><span class="tag css">CSS</span><b>Can a stylesheet run a language model?</b><p>A Shakespeare babbler whose whole forward pass is CSS colour maths: <code>color-mix()</code> sums and relative-colour multiplies.</p><span class="facts">21K weights · about 31 ms a character</span></a>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="big">The rules</h2>
+    <ul class="says">
+      <li><strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour function, a layout pass, a gradient. Not WebGPU, WebGL or WASM, which is how everyone else does it.</li>
+      <li><strong>JavaScript is allowed for the bookkeeping.</strong> Every page says exactly which steps are script and which aren't.</li>
+      <li><strong>It has to be a real model and it has to be right.</strong> Each one is checked against an ordinary implementation of the same weights, and the page lets you rerun that check.</li>
+      <li><strong>It doesn't have to be fast.</strong> It won't be. Each page says how slow.</li>
+    </ul>
+  </section>
 </main>
 </body>
 </html>

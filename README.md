@@ -1,16 +1,15 @@
 # Gradient Decent
 
-A language model that runs on colour blending. Every matrix multiply is done on a 2D canvas: no WebGPU, no WebGL,
-no WASM. It's made of gradients, and it's decent. (Nothing is descended. This is inference.)
+Small language models run by the parts of a browser that were built for drawing and styling, not for maths: canvas
+blend modes, CSS colours, and whatever else turns out to be able to multiply. No WebGPU, WebGL or WASM in the
+forward pass.
 
-- **The weights are pictures.** One pixel per weight, red for +1 and green for -1.
-- **The multiply is a blend mode.** The input vector is a 2-pixel strip stretched over the weight picture with
-  `multiply`.
-- **The sum is a squash.** The product is halved in width over and over until each row is one pixel, then read
-  back in a single `getImageData`.
-- **The activation function is a gradient.** SiLU is a canvas linear gradient, rendered once and eyedropped.
+The name is the joke. Gradient descent is how a model gets trained. Nothing here is trained and nothing descends:
+these only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.
 
-There are three so far, all live under one page. The first two run on the canvas; the third does it in CSS:
+Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
+
+There are three so far. The first two run on the canvas; the third does it in CSS:
 
 | | model | what it does |
 |---|---|---|
@@ -18,8 +17,21 @@ There are three so far, all live under one page. The first two run on the canvas
 | [`stories/`](stories/) | [hidude562/tiny-tiny-stories](https://huggingface.co/hidude562/tiny-tiny-stories) (MIT), 1M ternary weights, 5 layers | Wobbly children's stories from a prompt. |
 | [`css/`](css/) | trained here on lowercase Tiny Shakespeare, 21K weights, one hidden layer | Shakespeare-shaped babble, one character at a time, with the whole forward pass in a stylesheet. |
 
+## The canvas ones
+
+Every matrix multiply is done on a 2D canvas.
+
+- **The weights are pictures.** One pixel per weight, red for positive and green for negative.
+- **The multiply is a blend mode.** The input vector is a 2-pixel strip stretched over the weight picture with
+  `multiply`.
+- **The sum is a squash.** The product is halved in width over and over until each row is one pixel, then read
+  back in a single `getImageData`.
+- **The activation function is a gradient.** SiLU is a canvas linear gradient, rendered once and eyedropped.
+
 The shared engine is two files: [`lib/blend.js`](lib/blend.js) (the canvas matrix multiply and the gradient) and
-[`lib/llama.js`](lib/llama.js) (a small Llama-style forward pass built on it).
+[`lib/llama.js`](lib/llama.js) (a small Llama-style forward pass built on it). [`lib/ui.js`](lib/ui.js) and
+[`lib/page.css`](lib/page.css) hold the page pieces every project shares: the live tiles, the race, the weight
+gallery and the explainer layout.
 
 ## The CSS one
 

@@ -4,64 +4,118 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chat · Gradient Decent</title>
+<meta name="description" content="A 1.8-million-weight chat model whose matrix multiplies are done by blending colours on a 2D canvas.">
 <link rel="stylesheet" href="../lib/page.css">
 <style>
-  #log { min-height:180px; max-height:46vh; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--panel); display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
+  #log { min-height:180px; max-height:46vh; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--bg); display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
   .msg { max-width:80%; padding:8px 12px; border-radius:12px; font:17px/1.45 Georgia, "Iowan Old Style", serif; white-space:pre-wrap; overflow-wrap:anywhere }
   .msg.a { align-self:flex-end; background:#26262d }
   .msg.b { align-self:flex-start; background:#1b2a22; border:1px solid #244a36 }
   .msg.b:empty::after { content:"…"; color:var(--dim) }
   .hint { color:var(--dim); font-size:13px; align-self:center; margin:auto 0 }
-  .cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; align-items:start }
-  .cols #layers { grid-template-columns:repeat(6, minmax(0,1fr)) }
-  @media (max-width:900px){ .cols { grid-template-columns:minmax(0,1fr) } }
-  #pics { display:flex; flex-direction:column; gap:14px }
-  .prow { display:flex; gap:8px; align-items:flex-start }
-  .prow figure { margin:0; min-width:0 }
-  .prow button { display:block; width:100%; padding:0; border:1px solid var(--line); border-radius:3px; background:#000; overflow:hidden; cursor:zoom-in }
-  .prow canvas { display:block; width:100%; height:auto; image-rendering:pixelated }
-  .prow figcaption { font-size:10px; color:var(--dim); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
-  .plab { font-size:11px; color:var(--dim); margin-bottom:-8px }
-  dialog { background:var(--panel); color:var(--fg); border:1px solid var(--line); border-radius:10px; padding:14px; max-width:94vw; max-height:92vh }
-  dialog::backdrop { background:rgba(0,0,0,.75) }
-  dialog .bar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:10px; font-size:13px; color:var(--dim) }
-  dialog .scroll { overflow:auto; max-width:90vw; max-height:76vh }
-  dialog canvas { display:block; image-rendering:pixelated }
 </style>
 </head>
 <body>
 <main>
-  <p class="crumb"><a href="../">Gradient Decent</a> / chat</p>
-  <h1><span>Chat</span></h1>
-  <p class="sub">A 1.8-million-weight chat model with the vocabulary and world knowledge of a three-year-old, running on canvas colour blending. It keeps the whole conversation in mind for about 250 tokens. Ask it about cats, cake or its favourite colour. Don't ask it for facts.</p>
-  <div class="cols">
-    <section>
-      <div id="log" aria-live="polite"><div class="hint" id="hint">Loading the weight pictures</div></div>
-      <form id="f">
-        <input type="text" id="prompt" placeholder="Say something simple" aria-label="Message" autocomplete="off" maxlength="200">
-        <button id="go" disabled>Send</button>
-        <button id="reset" type="button" class="ghost" disabled>New chat</button>
-      </form>
-      <div id="stat"></div>
-    </section>
-    <section>
-      <h2 style="margin-top:0">The activation function (SiLU), stored as a gradient.</h2>
-      <canvas id="lut" width="1024" height="1"></canvas>
-      <h2>Every layer's weights multiplied by its current input, live.</h2>
-      <div id="layers"></div>
-    </section>
-  </div>
-  <h2 id="pics-h">The weights themselves. One pixel is one weight: red is positive, green is negative, brighter is bigger. Every picture in a row is drawn at the same scale. Click one to see it up close.</h2>
-  <div id="pics"></div>
-  <dialog id="zoom" aria-labelledby="zoom-t">
-    <div class="bar"><span id="zoom-t"></span><button type="button" class="ghost" id="zoom-x">Close</button></div>
-    <div class="scroll"><canvas id="zoom-i"></canvas></div>
-  </dialog>
+<p class="crumb"><a href="../">Gradient Decent</a> / chat</p>
+<h1><span>Can a 2D canvas hold a conversation?</span></h1>
+<p class="lede">A 1.8-million-weight chat model, <a href="https://huggingface.co/raincandy-u/TinyChat-1776K">TinyChat-1776K</a>, where every matrix multiply is done by blending colours on a 2D canvas. The weights are pictures, the multiply is a blend mode, the sum is an image being squashed and the activation function is a gradient. No WebGPU, no WebGL, no WASM.</p>
+<p class="answer">Yes, and it gets the maths right: on a 136-token test conversation it picks the same next token as the original model in Hugging Face transformers at every position. The odd answers are the model's fault, not the canvas's. It was trained on conversations at a three-year-old's level and knows nothing about the world. A plain JavaScript loop is still much faster; the race below measures by how much on your machine.</p>
+
+<section>
+<div class="bench">
+<h2 class="big">Run it</h2>
+<p class="section-lede">Ask it about cats, cake or its favourite colour. Don't ask it for facts. It keeps the whole conversation in mind for about 250 tokens.</p>
+<div class="cols">
+<div>
+<div id="log" aria-live="polite"><div class="hint" id="hint">Loading the weight pictures</div></div>
+<form id="f">
+<input type="text" id="prompt" placeholder="Say something simple" aria-label="Message" autocomplete="off" maxlength="200">
+<button id="go" disabled>Send</button>
+<button id="reset" type="button" class="ghost" disabled>New chat</button>
+</form>
+<div id="stat"></div>
+</div>
+<div>
+<h2 style="margin-top:0">The activation function (SiLU), stored as a gradient. Red is positive, green is negative.</h2>
+<canvas id="lut" width="1024" height="1"></canvas>
+<h2>Every layer's weights multiplied by its current input, live.</h2>
+<div id="layers"></div>
+</div>
+</div>
+<p class="note">The tiles aren't a visualisation added afterwards. Each one is the working canvas for that multiply, copied to the page.</p>
+</div>
+</section>
+
+<section>
+<h2 class="big">Race it in your browser</h2>
+<p class="section-lede">Feeds the same run of tokens through both engines: the canvas, and a plain JavaScript loop over the same weights read back out of the pictures. They should pick the same next token at every position.</p>
+<button id="race" class="ghost" type="button" disabled>Race the canvas against JavaScript</button>
+<div class="metrics">
+<div class="metric"><span>Canvas, per token</span><strong id="r-canvas">–</strong></div>
+<div class="metric"><span>JavaScript, per token</span><strong id="r-js">–</strong></div>
+<div class="metric"><span>Canvas is slower by</span><strong id="r-x">–</strong></div>
+<div class="metric"><span>Same top token / largest logit gap</span><strong id="r-ok">–</strong></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">How one token gets made</h2>
+<p class="section-lede">22 matrix multiplies per token, every one of them on the canvas. JavaScript does the bookkeeping around them.</p>
+<ol class="pipe">
+<li><span class="tag js">JS</span><div><b>Tokenise.</b><p>Your message is wrapped as <code>&lt;A&gt;your text &lt;end&gt;</code> followed by <code>&lt;B&gt;</code>, the model's turn, and cut into pieces with byte-pair encoding from a 2,048-piece vocabulary.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Embed and normalise.</b><p>Look up the token's row of numbers, then scale it so its average size is 1 (RMSNorm). This is the input vector for the layer.</p></div></li>
+<li><span class="tag canvas">Canvas</span><div><b>Multiply.</b><p>The input becomes a 2-pixel-tall strip of colours. It's stretched over the weight picture with the <code>multiply</code> blend mode, so every pixel becomes one weight times one input.</p></div></li>
+<li><span class="tag canvas">Canvas</span><div><b>Sum.</b><p>The product is drawn at half its width, again and again, with smoothing on. Each halving averages neighbouring pixels, so when a row is one pixel wide that pixel is the row's average, which is the sum divided by the width.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Read back.</b><p>One <code>getImageData</code> on a 1-pixel-wide column returns every output of the multiply at once. Red plus green from the top half, minus the same from the bottom half, times a scale.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Attention.</b><p>Three of those multiplies give a query, a key and a value. The key and value are cached. The query is compared with every cached key, the scores go through a softmax, and the values are mixed in those proportions. This is how it remembers earlier tokens.</p></div></li>
+<li><span class="tag canvas">Canvas</span><div><b>The gradient.</b><p>The feed-forward part needs SiLU, a smooth curve. It's stored as a canvas linear gradient with 1,025 colour stops, rendered once. Applying it is reading the colour at the right position, like an eyedropper.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Repeat, then sample.</b><p>3 layers of seven multiplies each, then one more against the vocabulary picture to score every possible next token. Pick one, show it, and go back to step 1.</p></div></li>
+</ol>
+<h3 class="sub3">What one multiply looks like</h3>
+<pre>strip.putImageData(input, 0, 0)                  // the vector, as a 2-pixel-tall strip
+work.globalCompositeOperation = 'copy'
+work.drawImage(weights, 0, 0)                    // the matrix, as a picture
+work.globalCompositeOperation = 'multiply'
+work.drawImage(strip, 0, 0, w, 2, 0, 0, w, h)    // every weight times its input, in one draw
+for (half of halvings) half.drawImage(prev, 0, 0, pw, h, 0, 0, pw / 2, h)   // sum by squashing
+answer = last.getImageData(0, 0, 1, h)           // one pixel per output</pre>
+<p class="note">That's the real sequence from <a href="../lib/blend.js"><code>lib/blend.js</code></a>, trimmed. Negative numbers can't be colours, so positives go in the red channel and negatives in green, and the strip is drawn twice (once swapped) so all four sign combinations get multiplied.</p>
+<div class="split" style="margin-top:22px">
+<div><h3><span class="tag js">JS</span> the bookkeeping</h3><ul>
+<li>The tokenizer</li><li>Norms and rotary positions</li><li>Attention scores and softmax over the cache</li><li>Adding results back into the running vector</li><li>Sampling</li></ul></div>
+<div><h3><span class="tag canvas">Canvas</span> every matrix multiply</h3><ul>
+<li>Query, key, value and attention output</li><li>Gate, up and down in the feed-forward part</li><li>The output head over the whole vocabulary</li><li>The SiLU curve, as a gradient</li><li>The live tiles on this page are those products</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">The weights themselves</h2>
+<p class="section-lede">All 22 of them. One pixel is one weight: red is positive, green is negative, brighter is bigger. Every picture in a row is drawn at the same scale. Click one to see it up close.</p>
+<div class="pics" id="pics"></div>
+</section>
+
+<section>
+<h2 class="big">What it says</h2>
+<ul class="says">
+<li><strong>Blend modes are exact enough.</strong> In a float16 canvas a multiply lands within about 0.2% of the true answer, and the logits end up within 0.17 of the real model's on values around 20. In an ordinary 8-bit canvas the same multiply is about 5% off, which is too much.</li>
+<li><strong>Full-precision weights fit in 8-bit pictures.</strong> Each pixel holds 8 bits of size, the channel holds the sign, and every row has its own scale. Against the original weights that moves the logits by about 0.06 and changes none of the top tokens.</li>
+<li><strong>It runs at about 15 tokens a second</strong> in headless Chrome on a CPU with no GPU, with the tiles drawing.</li>
+<li><strong>It isn't fast.</strong> A plain JavaScript loop over the same weights is about 19 times faster per token in headless Chrome on a CPU. The race above gives the number for your machine. The canvas is here because you can watch it.</li>
+</ul>
+<h3 class="sub3">Gotchas found on the way</h3>
+<ul class="says">
+<li>Squashing a picture to one pixel in a single <code>drawImage</code> gives garbage, because the browser only samples a few pixels. Halving step by step is what makes it a sum.</li>
+<li>Colours can't be negative, so every number is split into a positive and a negative channel and the multiply is done for all four sign combinations.</li>
+<li>This model's vocabulary has glued-together pieces (a full stop, an end marker and the next speaker's tag as one token) that its own tokenizer never produces. They're blocked at sampling.</li>
+<li>Only tried in Chrome. It needs a float16 2D canvas.</li>
+</ul>
+</section>
 </main>
 <script type="module">
 import { Model, sample, selfTest } from '../lib/llama.js';
+import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js';
 const $ = id => document.getElementById(id);
-const tile = (key, label) => { const t = document.createElement('div'); t.className = 'tile'; const c = document.createElement('canvas'); c.width = c.height = 64; const l = document.createElement('div'); l.textContent = label; t.append(c, l); $('layers').append(t); return c.getContext('2d'); };
 const BOS = 1, END = 2, A = 3, B = 4, NL = 5;
 let M, vocab, rank, st, banned = [], busy = false, history = [];
 
@@ -82,13 +136,13 @@ function encode(text, bos = true) {
   const ids = bos ? [BOS] : [];
   for (const part of text.split(/(<A>|<B>)/)) {
     if (part === '<A>') ids.push(A); else if (part === '<B>') ids.push(B);
-    else if (part) for (const p of ('▁' + part.replace(/ /g, '▁')).split(/(\u2581<unk>|\u2581<start>|\u2581<end>)/)) {
+    else if (part) for (const p of ('\u2581' + part.replace(/ /g, '\u2581')).split(/(\u2581<unk>|\u2581<start>|\u2581<end>)/)) {
       if (p === '\u2581<end>') ids.push(END); else if (p === '\u2581<start>') ids.push(BOS); else if (p === '\u2581<unk>') ids.push(0); else if (p) ids.push(...bpe(p));
     }
   }
   return ids;
 }
-const piece = id => id < 5 ? '' : M.bundle.tok.vocab[id].replace(/▁/g, ' ');
+const piece = id => id < 5 ? '' : M.bundle.tok.vocab[id].replace(/\u2581/g, ' ');
 const clean = t => t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 
 function bubble(cls, text) { $('hint')?.remove(); const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text; $('log').append(d); $('log').scrollTop = $('log').scrollHeight; return d; }
@@ -100,7 +154,7 @@ function fresh(keep) {
   history = history.slice(from); history.forEach(t => feed(t, false));
 }
 async function send(text) {
-  busy = true; $('go').disabled = true; $('reset').disabled = true;
+  busy = true; $('go').disabled = true; $('reset').disabled = true; $('race').disabled = true;
   bubble('a', text);
   const turn = encode('<A>' + text + ' <end>\n<B>', false);
   if (st.pos + turn.length + 60 > M.ctx) fresh(M.ctx - turn.length - 90);
@@ -116,36 +170,18 @@ async function send(text) {
   }
   if (!s.trim()) out.textContent = '(said nothing)';
   feed([END, NL], false); history.push(turn, [...reply, END, NL]);
-  busy = false; $('go').disabled = false; $('reset').disabled = false; $('prompt').focus();
+  busy = false; $('go').disabled = false; $('reset').disabled = false; $('race').disabled = false; $('prompt').focus();
 }
 $('f').addEventListener('submit', e => { e.preventDefault(); const t = clean($('prompt').value); if (!busy && M && t) { $('prompt').value = ''; send(t); } });
 $('reset').addEventListener('click', () => { if (busy) return; history = []; fresh(0); $('log').textContent = ''; const h = document.createElement('div'); h.className = 'hint'; h.id = 'hint'; h.textContent = 'New chat. Say hi.'; $('log').append(h); $('stat').textContent = ''; });
-async function showPictures() {
-  const names = { q: 'query', k: 'key', v: 'value', o: 'attention out', gate: 'gate', up: 'up', down: 'down' };
-  const add = async (row, key, label, turn) => {
-    const e = M.bundle.mats[key], img = new Image(); img.src = e.png; await img.decode();
-    // Draw only the real columns (the file is padded to a power of two); the head is turned on its side to fit.
-    const c = document.createElement('canvas'), g = (c.width = turn ? e.n : e.m, c.height = turn ? e.m : e.n, c.getContext('2d'));
-    if (turn) { g.translate(0, e.m); g.rotate(-Math.PI / 2); }
-    g.drawImage(img, 0, 0, e.m, e.n, 0, 0, e.m, e.n);
-    const f = document.createElement('figure'), b = document.createElement('button'), cap = document.createElement('figcaption');
-    f.style.flex = `${c.width} 0 0`; b.type = 'button'; b.setAttribute('aria-label', `${label}, ${e.n} by ${e.m} weights, open larger`); cap.textContent = `${label} ${e.n}×${e.m}`;
-    b.addEventListener('click', () => { const z = $('zoom-i'), k = Math.max(1, Math.min(4, Math.floor(900 / c.width))); z.width = c.width; z.height = c.height; z.getContext('2d').drawImage(c, 0, 0); z.style.width = c.width * k + 'px';
-      $('zoom-t').textContent = `${label}: ${e.n} rows × ${e.m} columns, ${(e.n * e.m).toLocaleString()} weights${turn ? ', turned on its side' : ''}`; $('zoom').showModal(); });
-    b.append(c); f.append(b, cap); row.append(f);
-  };
-  const row = text => { const l = document.createElement('div'); l.className = 'plab'; l.textContent = text; const r = document.createElement('div'); r.className = 'prow'; $('pics').append(l, r); return r; };
-  for (let l = 0; l < M.L; l++) { const r = row(`Layer ${l + 1}`); for (const nm of Object.keys(names)) await add(r, l + '.' + nm, names[nm]); }
-  await add(row('Output head, which is also the word embeddings, turned on its side'), 'head', 'head', true);
-}
-$('zoom-x').addEventListener('click', () => $('zoom').close());
-$('zoom').addEventListener('click', e => { if (e.target === $('zoom')) $('zoom').close(); });
+wireRace($('race'), () => busy ? null : M, () => [...M.bundle.test.ids, ...M.bundle.test.greedy], { canvas: $('r-canvas'), js: $('r-js'), x: $('r-x'), ok: $('r-ok') });
 window.selfTest = () => { const t = M.bundle.test; return { vsFloat: selfTest(M, t.ids, t.greedy, t.firstLogits), vs8bit: selfTest(M, t.ids, t.greedy8, t.firstLogits8), encodeOK: t.encode.map(c => JSON.stringify(encode(c.text)) === JSON.stringify(c.ids)) }; };
 
-Model.load('model.json', { tile, gradientCanvas: $('lut') })
-  .then(m => { M = m; vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i])); rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i])); fresh(0); showPictures();
+Model.load('model.json', { tile: tileMaker($('layers')), gradientCanvas: $('lut') })
+  .then(m => { M = m; vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i])); rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i])); fresh(0);
+    showPictures(M, $('pics'), [...layerRows(M), { label: 'Output head, which is also the word embeddings', items: [{ key: 'head', label: 'head', turn: true }] }]);
     banned = M.bundle.tok.vocab.flatMap((p, i) => i > 5 && /[<\n]/.test(p) ? [i] : []);
-    $('go').disabled = false; $('reset').disabled = false; $('hint').textContent = 'Say hi.'; $('stat').textContent = `Ready. ${M.bundle.name}, loaded as ${M.count} pictures.`; })
+    $('go').disabled = false; $('reset').disabled = false; $('race').disabled = false; $('hint').textContent = 'Say hi.'; $('stat').textContent = `Ready. ${M.bundle.name}, loaded as ${M.count} pictures.`; })
   .catch(e => { $('hint').textContent = 'Could not start: ' + e.message + '. This needs a recent Chrome or Edge (float16 canvas).'; });
 </script>
 </body>
