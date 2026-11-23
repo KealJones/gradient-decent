@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<!--
+  Gradient Decent / audio
+
+  The css/ character model again, but the forward pass is a Web Audio graph rendered by an OfflineAudioContext.
+  The weights are a sound file (weights.wav, written by tools/export_audio.py) decoded with decodeAudioData.
+
+  Who does what:
+    Audio  both matrix multiplies (ConvolverNode), both biases (AudioBufferSourceNode), ReLU (WaveShaperNode),
+           picking the 192 useful samples out of layer 1's output (a GainNode driven by a click track),
+           all the scaling (GainNode)
+    JS     building the graph, copying 8 embedding rows into the input buffer, reading 37 samples back,
+           softmax + sampling, the loop, the scope drawing and the playback buttons
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audio · Gradient Decent</title>
+<meta name="description" content="A tiny language model whose forward pass is a Web Audio graph: the weights are a sound file, the matrix multiplies are convolution reverbs and ReLU is a distortion curve.">
+<link rel="stylesheet" href="../lib/page.css?v=4">
+<style>
+  .tag.audio { background:#8fb4ff }
+  #out { white-space:pre-wrap; min-height:170px; padding:16px; margin:0 0 6px; border:1px solid var(--line); border-radius:8px; background:var(--bg); font:18px/1.6 Georgia, "Iowan Old Style", serif }
+  #out b { font-weight:400; color:var(--dim) }
+  label.t { color:var(--dim); font-size:13px; display:flex; gap:8px; align-items:center }
+  #stat { margin:8px 0 14px }
+  #scope { display:block; width:100%; height:470px; border:1px solid var(--line); border-radius:8px; background:var(--bg) }
+  .listen { display:flex; flex-wrap:wrap; gap:8px 14px; align-items:center; margin-top:12px }
+  #heard { color:var(--dim); font-size:13px; min-height:1.5em; margin:8px 0 0 }
+  pre.wide { white-space:pre; overflow-wrap:normal }
+  .split { margin-top:22px }
+  .split h3 .tag { padding:1px 6px }
+  @media (max-width:700px) { #scope { height:420px } }
+</style>
+</head>
+<body>
+<main>
+  <p class="crumb"><a href="../">Gradient Decent</a> / audio</p>
+  <h1><span>Can you listen to a model think?</span></h1>
+  <p class="lede">
+    The same tiny Shakespeare model as the <a href="../css/">CSS page</a>, run by the browser's audio engine. The
+    weights are a five-second sound file. Each matrix multiply is a <code>ConvolverNode</code>, the node meant for
+    reverb. ReLU is a <code>WaveShaperNode</code>, the node meant for distortion. One offline render of 1.7 seconds
+    of audio is one character.
+  </p>
+  <p class="answer">
+    Yes. The whole forward pass fits in one audio render per character, with no script touching the numbers
+    between the layers, and the logits come out as the last 37 samples of the sound. It matches a plain JavaScript
+    run of the same weights to about 0.0002 and picks the same top character every time. It takes 10 to 45 ms a
+    character in headless Chrome, a few hundred times slower than a plain loop. You can play back both the weights and any
+    character's render. Whether that counts as listening to it think is up to you. The signals look like noise on the scope, and nobody has heard the playback yet (see the last gotcha).
+  </p>
+
+  <section>
+    <div class="bench">
+      <h2 class="big">Run it</h2>
+      <form id="f">
+        <input id="seed" type="text" value="first citizen:\n" aria-label="Prompt">
+        <button id="go" disabled>Generate</button>
+        <label class="t">temperature <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.7"></label>
+      </form>
+      <div id="out"></div>
+      <div id="stat">Loading the weights as audio</div>
+
+      <h2>The render for the latest character, as a scope</h2>
+      <canvas id="scope" role="img" aria-label="The rendered audio for the latest character: layer 1 output, the hidden neurons, layer 2 output and the 37 logits"></canvas>
+
+      <div class="listen">
+        <button id="hear" class="ghost" type="button" disabled>Listen to this character</button>
+        <button id="hearw" class="ghost" type="button" disabled>Listen to the weights</button>
+        <button id="quiet" class="ghost" type="button" disabled>Stop</button>
+        <label class="t"><input id="along" type="checkbox"> play every character as it's made (8× speed, slows the text down)</label>
+      </div>
+      <p id="heard"></p>
+      <p class="note">
+        The first three traces are channels of the one buffer the audio engine rendered. The bottom one is the last
+        37 samples of the output channel, which is the answer. Playback is turned down to 15% after levelling the peaks,
+        because raw model signals are harsh. The weights file is also a plain download:
+        <a href="weights.wav">weights.wav</a> (167 KB, mono, 8 kHz, 32-bit float).
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="big">Race it in your browser</h2>
+    <p class="section-lede">
+      Runs 40 random 8-character contexts through both engines: the audio graph fed from <code>weights.wav</code>,
+      and a plain JavaScript loop over the same weights from the CSS page's <code>model.json</code>. It also checks
+      that the decoded sound file holds exactly the floats in <code>model.json</code>. Same as
+      <code>window.selfTest()</code>.
+    </p>
+    <button id="race" class="ghost" type="button" disabled>Race the audio graph against JavaScript</button>
+    <div class="metrics">
+      <div class="metric"><span>Audio, per character</span><strong id="r-audio">–</strong></div>
+      <div class="metric"><span>JavaScript, per character</span><strong id="r-js">–</strong></div>
+      <div class="metric"><span>Audio is slower by</span><strong id="r-x">–</strong></div>
+      <div class="metric"><span>Same top character / largest logit gap</span><strong id="r-ok">–</strong></div>
+    </div>
+    <p class="note" id="r-wav"></p>
+  </section>
+
+  <section>
+    <h2 class="big">How one character gets made</h2>
+    <p class="section-lede">
+      Eight steps and one render. JavaScript does three of the steps and none of the arithmetic.
+    </p>
+    <ol class="pipe">
+      <li><span class="tag js">JS</span><div><b>Tokenise and copy the embeddings in.</b>
+        <p>Take the last 8 characters. For each one, copy its 9 samples out of the first 333 samples of the decoded
+          sound file into a 72-sample buffer. A copy, no sums. That buffer is the input: 9 ms of audio.</p></div></li>
+      <li><span class="tag audio">Audio</span><div><b>Layer 1 is a reverb.</b>
+        <p>A <code>ConvolverNode</code> whose impulse response is the 192 × 72 weight matrix: 13,824 samples, one
+          72-sample slot per neuron, each slot written back to front. Convolving slides the input across it. At
+          the last sample of slot <i>i</i> the input lines up exactly with neuron <i>i</i>'s weights, so that one
+          sample is the dot product. The 71 samples around it are half-overlaps: real numbers, but junk.</p></div></li>
+      <li><span class="tag audio">Audio</span><div><b>The bias is a second track.</b>
+        <p>An <code>AudioBufferSourceNode</code> plays 192 clicks, one per slot, each as loud as that neuron's bias,
+          timed to land on the useful sample. Connecting two nodes to the same input adds them.</p></div></li>
+      <li><span class="tag audio">Audio</span><div><b>ReLU is a distortion curve.</b>
+        <p>A <code>WaveShaperNode</code> with the three-point curve <code>[0, 0, 1]</code>. It maps −1…1 through the
+          curve with straight lines between points, and the middle point sits exactly at zero, so negative samples
+          become silence and positive ones pass. It clamps anything outside −1…1, so <code>GainNode</code>s turn
+          the signal down by 32 first. No neuron in this model can exceed 19.2.</p></div></li>
+      <li><span class="tag audio">Audio</span><div><b>A click track picks out the neurons.</b>
+        <p>A <code>GainNode</code> with its gain at 0, and a track that is 1 on every 72nd sample and 0 elsewhere
+          connected to the gain itself. The junk is muted. What's left is 192 spikes, 72 samples apart.</p></div></li>
+      <li><span class="tag audio">Audio</span><div><b>Layer 2 is another reverb, laid out to match the spacing.</b>
+        <p>Its impulse response has the same 72-sample slots. Slot 191 − <i>i</i> starts with neuron <i>i</i>'s 37
+          outgoing weights. Because the spikes are 72 apart and 37 is less than 72, at sample 13,823 + <i>o</i>
+          every spike lines up with its own weight for output <i>o</i> and with nothing else. Layer 2's biases are
+          37 more samples mixed in at that spot, and a last gain undoes the scaling.</p></div></li>
+      <li><span class="tag js">JS</span><div><b>Read back.</b>
+        <p>Start the render, wait, and read samples 13,823 to 13,859 of the result. Those are the 37 logits, already
+          in the right units.</p></div></li>
+      <li><span class="tag js">JS</span><div><b>Sample.</b>
+        <p>Softmax with temperature and pick one character. Then go back to step 1 with it on the end.</p></div></li>
+    </ol>
+
+    <h3 class="sub3">The graph</h3>
+    <pre class="wide">input ─▶ Convolver (layer 1) ─▶ Gain ×8 ─┐
+bias 1 track ────────────▶ Gain ×0.5 ──┴▶ WaveShaper [0, 0, 1] ─▶ gate
+click track ─▶ gate.gain
+gate ─▶ Convolver (layer 2) ─▶ Gain ×32 ─┐
+bias 2 track ───────────────────────────┴▶ Gain ×16 ─▶ the rendered buffer
+
+const c1 = new ConvolverNode(ctx, { disableNormalization: true, buffer: layer1 })
+const relu = new WaveShaperNode(ctx, { curve: new Float32Array([0, 0, 1]), oversample: 'none' })
+const gate = new GainNode(ctx, { gain: 0 })
+clicks.connect(gate.gain)                        // an audio signal as the volume knob</pre>
+    <p class="note">
+      The gains are all powers of two, so they cost no precision. The file stores every weight divided by 16 to stay
+      inside −1…1 like any sound file. ×8 and ×0.5 bring layer 1 and its bias to "divided by 32" for the WaveShaper,
+      ×32 and ×16 bring the output back.
+    </p>
+
+    <div class="split">
+      <div>
+        <h3><span class="tag js">JS</span> the bookkeeping</h3>
+        <ul>
+          <li>Decode the sound file once and cut it into five pieces</li>
+          <li>Build the 13-node graph for each character (an offline context can only render once)</li>
+          <li>Copy 8 embedding rows into the input buffer</li>
+          <li>Read 37 samples back</li>
+          <li>Softmax, temperature and sampling</li>
+          <li>The scope and the playback buttons</li>
+        </ul>
+      </div>
+      <div>
+        <h3><span class="tag audio">Audio</span> all of the maths</h3>
+        <ul>
+          <li>Both matrix multiplies (<code>ConvolverNode</code>)</li>
+          <li>Both biases (<code>AudioBufferSourceNode</code>, summed at a node input)</li>
+          <li>ReLU (<code>WaveShaperNode</code>)</li>
+          <li>Picking 192 samples out of 13,860 (<code>GainNode</code> with an audio-rate gain)</li>
+          <li>Carrying the hidden layer from one multiply to the next</li>
+          <li>Every scale factor (<code>GainNode</code>)</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="big">What it says</h2>
+    <ul class="says">
+      <li><strong>One render per character, nothing in between.</strong> The catch with a convolver as a matrix
+        multiply is that its answers come out 72 samples apart with junk between them. Muting the junk with a click
+        track, and spacing layer 2's weights the same 72 samples apart, lets layer 1 feed layer 2 directly. The
+        second layer then costs no extra time on the clock: all 37 logits land one after another at the end.</li>
+      <li><strong>A sound file is an exact weight format.</strong> A 32-bit float WAV decoded by
+        <code>decodeAudioData</code> comes back bit for bit, all 41,842 samples, as long as the decoding context
+        runs at the file's sample rate. At 4 bytes a weight it's also about five times smaller than the CSS
+        version's 21 bytes. (This file is 167 KB because the layouts for the bias track and layer 2 are mostly
+        silence.)</li>
+      <li><strong>Precision is float32 with an FFT in the middle.</strong> Chrome's convolver works in the frequency
+        domain, so the dot products aren't summed in order. The logits still match a plain loop to about 0.0002 on
+        values as large as 400 (random contexts give some very negative logits), and the plain float32 loop is itself about 0.00006 away from the same sums done in
+        float64. The ReLU and the gains add nothing measurable.</li>
+      <li><strong>It's slow, and the slow part is setup.</strong> Between 10 and 45 ms a character in headless Chrome 153,
+        against 50 to 300 µs for a plain loop on the same machine (the race measures yours). The audio engine does two 13,824-tap convolutions over 13,860
+        samples to compute what is really 192 dot products of 72 numbers and 37 of 192. And an
+        <code>OfflineAudioContext</code> can't be reused, so both convolvers are built again for every
+        character.</li>
+      <li><strong>The model's time axis is real.</strong> At 8 kHz, neuron 0 answers 9 ms in, neuron 191 answers at
+        1.73 seconds, and the 37 logits take the last 4.6 ms. On the scope, layer 1 looks like steady noise and the answer
+        is a short burst at the very end.</li>
+    </ul>
+    <h3 class="sub3">Gotchas found on the way</h3>
+    <ul class="says">
+      <li><code>ConvolverNode</code> rescales its impulse response by default so reverbs come out at a sensible
+        loudness. <code>normalize</code> has to be set to false before the buffer is assigned, or every weight is
+        silently rescaled.</li>
+      <li><code>WaveShaperNode</code> clamps its input to −1…1. Without turning the signal down first, the largest
+        logit error was about 300 and only 26 of 40 top characters matched.</li>
+      <li>The curve needs a point exactly at zero, which means an odd number of points. A 1,024-point ReLU curve has
+        its kink between two points and is off by up to 0.07 in the logits. Three points are exact; a 65,537-point
+        curve gave the same numbers and took several times as long. A two-point curve is just a straight line.</li>
+      <li><code>oversample</code> has to stay at <code>'none'</code>. At <code>'4x'</code> the node filters the
+        signal, which smears each sample into its neighbours and puts the answers in the wrong place: errors in
+        the hundreds.</li>
+      <li>Without the click-track gate the junk between the useful samples leaks into layer 2: 1 of 40 top
+        characters matched. The other way to keep it out also works in one render: give each of the 37 outputs its
+        own 13,896-sample stretch of impulse response, so the junk never lines up with a weight. That was just as
+        accurate (10 of 10) but makes one character 64 seconds of audio and about a second to render, so the gate
+        stayed.</li>
+      <li><code>decodeAudioData</code> resamples to the context's rate. Decoded by a 48 kHz context, this 8 kHz file
+        comes back as 251,052 interpolated samples, not 41,842 weights. The page decodes it with an 8 kHz
+        <code>OfflineAudioContext</code>.</li>
+      <li>Playing sound needs a click first, and the playback path (a normal <code>AudioContext</code>) resamples
+        the 8 kHz buffers to the sound card's rate, so what you hear is not sample-exact. The maths never goes
+        through that path.</li>
+      <li>Only tried in headless Chrome 153, which has no speakers. The playback code runs without errors there, but
+        nobody has heard it yet.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+{
+  const $ = id => document.getElementById(id);
+  const out = $('out');
+
+  // ===================================================================
+  // Load: the layout (sizes and offsets) and the weights (a sound file)
+  // ===================================================================
+  let L;            // layout.json, written by tools/export_audio.py
+  let wav;          // weights.wav as a decoded AudioBuffer (played by "Listen to the weights")
+  let part;         // name -> Float32Array view of one section of the decoded file
+  let IN, H, V, E;  // 72 inputs, 192 neurons, 37 characters, 9 numbers per embedding
+  let FIRST, LEN;   // sample index of logit 0 in the render, and the render's length
+  let clicks, bias2;
+
+  async function load() {
+    L = await (await fetch('layout.json')).json();
+    ({ IN, H, V, E } = L);
+    // decodeAudioData resamples to its context's rate, so decode on a context at the file's own rate.
+    const bytes = await (await fetch('weights.wav')).arrayBuffer();
+    wav = await new OfflineAudioContext(1, 1, L.rate).decodeAudioData(bytes);
+    const all = wav.getChannelData(0);
+    part = {};
+    for (const [name, [at, n]] of Object.entries(L.sections)) part[name] = all.subarray(at, at + n);
+
+    FIRST = (H - 1) * IN + IN - 1;      // 13,823: where every hidden spike lines up with layer 2's weights
+    LEN = FIRST + V;                    // 13,860 samples per character
+
+    // Two tracks that hold no weights, only timing. A 1 on the last sample of every 72-sample slot:
+    clicks = new Float32Array(H * IN);
+    for (let i = 0; i < H; i++) clicks[i * IN + IN - 1] = 1;
+    // and layer 2's 37 biases moved to where the logits come out (silence before them).
+    bias2 = new Float32Array(LEN);
+    bias2.set(part.bias2, FIRST);
+  }
+
+  // ===================================================================
+  // The forward pass: build the graph, render it once, read 37 samples
+  // ===================================================================
+  const RELU = new Float32Array([0, 0, 1]);   // WaveShaper curve over -1..1: flat, then a straight line up
+
+  // Run the model on 8 token ids. Returns the 37 logits and the rendered AudioBuffer:
+  // channel 0 is the output, channels 1 and 2 are taps for the scope (nothing reads them for the maths).
+  async function forward(toks) {
+    const ctx = new OfflineAudioContext(3, LEN, L.rate);
+    const track = data => {
+      const b = ctx.createBuffer(1, data.length, L.rate);
+      b.copyToChannel(data, 0);
+      return new AudioBufferSourceNode(ctx, { buffer: b });
+    };
+    const conv = data => {
+      const b = ctx.createBuffer(1, data.length, L.rate);
+      b.copyToChannel(data, 0);
+      return new ConvolverNode(ctx, { disableNormalization: true, buffer: b });   // normalize off BEFORE the buffer
+    };
+
+    // Input: the 8 characters' embedding rows, copied from the sound file.
+    const x = new Float32Array(IN);
+    toks.forEach((t, s) => x.set(part.emb.subarray(t * E, t * E + E), s * E));
+
+    const input = track(x), biasOne = track(part.bias1), click = track(clicks), biasTwo = track(bias2);
+    const layer1 = conv(part.ir1), layer2 = conv(part.ir2);
+    // The file holds weights / scale (16). input x layer 1 is therefore / 256, the bias track / 16.
+    // Bring both to / reluDiv (32) so the WaveShaper never sees anything outside -1..1.
+    const down1 = new GainNode(ctx, { gain: L.scale * L.scale / L.reluDiv });
+    const downB = new GainNode(ctx, { gain: L.scale / L.reluDiv });
+    const relu = new WaveShaperNode(ctx, { curve: RELU, oversample: 'none' });
+    const gate = new GainNode(ctx, { gain: 0 });              // silent unless the click track opens it
+    const up2 = new GainNode(ctx, { gain: L.reluDiv });       // layer 2 output back to / 16, same as its bias
+    const up = new GainNode(ctx, { gain: L.scale });          // and back to real logits
+    const taps = new ChannelMergerNode(ctx, { numberOfInputs: 3 });
+
+    input.connect(layer1).connect(down1).connect(relu);
+    biasOne.connect(downB).connect(relu);                     // two connections into one input are added
+    relu.connect(gate);
+    click.connect(gate.gain);                                 // audio-rate signal added to the gain of 0
+    gate.connect(layer2).connect(up2).connect(up);
+    biasTwo.connect(up);
+    up.connect(taps, 0, 0);
+    layer1.connect(taps, 0, 1);                               // scope only
+    gate.connect(taps, 0, 2);                                 // scope only
+    taps.connect(ctx.destination);
+    for (const s of [input, biasOne, click, biasTwo]) s.start();
+
+    const rendered = await ctx.startRendering();              // the audio engine does the maths in here
+    return { logits: Array.from(rendered.getChannelData(0).subarray(FIRST, FIRST + V)), rendered };
+  }
+
+  // Softmax with temperature T, then draw one token.
+  function sample(l, T) {
+    const mx = Math.max(...l);
+    const p = l.map(v => Math.exp((v - mx) / T));
+    let r = Math.random() * p.reduce((a, b) => a + b);
+    for (let i = 0; i < p.length; i++) if ((r -= p[i]) <= 0) return i;
+    return p.length - 1;
+  }
+
+  // ===================================================================
+  // Generation loop
+  // ===================================================================
+  let run = 0;        // bumped to cancel an older generation when a new one starts
+  let latest = null;  // { rendered, picked } for the scope and the Listen button
+
+  async function generate() {
+    const id = ++run;
+    const seed = $('seed').value.toLowerCase().replace(/\\n/g, '\n');
+    let toks = [...seed].map(c => L.vocab.indexOf(c)).filter(i => i >= 0);
+    while (toks.length < L.ctx) toks.unshift(0);   // left-pad short prompts with newlines (token 0)
+
+    out.innerHTML = '<b></b>';
+    out.firstChild.textContent = seed;
+    const gen = document.createTextNode('');
+    out.append(gen);
+
+    let ms = 0;
+    for (let n = 1; n <= 400 && id === run; n++) {
+      const t0 = performance.now();
+      const r = await forward(toks.slice(-L.ctx));
+      ms += performance.now() - t0;
+      if (id !== run) break;
+
+      const t = sample(r.logits, +$('temp').value);
+      toks.push(t);
+      gen.data += L.vocab[t];
+      latest = { rendered: r.rendered, picked: t };
+      drawScope();
+      $('hear').disabled = false;
+      $('stat').textContent = `${n} chars · ${(ms / n).toFixed(1)} ms per char of audio rendering · ` +
+        `${(LEN / L.rate).toFixed(2)} s of sound each`;
+      if ($('along').checked && speaker) await play(mixdown(r.rendered), 8, `character ${n} at 8× speed`);
+      else await new Promise(r => setTimeout(r, 16));   // yield so the page repaints
+    }
+  }
+
+  // ===================================================================
+  // The scope: four traces of the latest render
+  // ===================================================================
+  const scope = $('scope'), g = scope.getContext('2d');
+  const shown = c => c === '\n' ? '↵' : c === ' ' ? '␣' : c;
+
+  function drawScope() {
+    const dpr = window.devicePixelRatio || 1;
+    const W = scope.clientWidth, Hc = scope.clientHeight;
+    if (scope.width !== Math.round(W * dpr) || scope.height !== Math.round(Hc * dpr)) {
+      scope.width = Math.round(W * dpr);
+      scope.height = Math.round(Hc * dpr);
+    }
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, W, Hc);
+    if (!latest) return;
+
+    const css = getComputedStyle(document.documentElement);
+    const dim = css.getPropertyValue('--dim'), line = css.getPropertyValue('--line');
+    const hot = css.getPropertyValue('--hot'), cool = css.getPropertyValue('--cool'), blue = '#8fb4ff', gold = '#ffd23f';
+    const logit = latest.rendered.getChannelData(0), l1 = latest.rendered.getChannelData(1), hid = latest.rendered.getChannelData(2);
+    const pad = 12, x0 = pad, x1 = W - pad, lane = (Hc - 8) / 4;
+    const peak = (a, from = 0, to = a.length) => { let m = 1e-9; for (let i = from; i < to; i++) m = Math.max(m, Math.abs(a[i])); return m; };
+    const narrow = W < 620;
+    g.font = '11px ui-monospace, Menlo, Consolas, monospace';
+    g.textBaseline = 'top';
+
+    const head = (k, text) => {
+      const top = 4 + k * lane;
+      g.fillStyle = dim; g.textAlign = 'left';
+      g.fillText(text, x0, top + 2, x1 - x0);
+      g.strokeStyle = line; g.lineWidth = 1;
+      const mid = Math.round(top + 16 + (lane - 22) / 2) + .5;
+      if (k % 2 === 0) { g.beginPath(); g.moveTo(x0, mid); g.lineTo(x1, mid); g.stroke(); }
+      return { mid, half: (lane - 26) / 2 };
+    };
+    // A whole channel as a min/max envelope, one column per pixel.
+    const envelope = (a, k, colour, scale) => {
+      const { mid, half } = k;
+      g.strokeStyle = colour; g.lineWidth = 1; g.beginPath();
+      const cols = Math.floor(x1 - x0);
+      for (let c = 0; c < cols; c++) {
+        const from = Math.floor(c / cols * LEN), to = Math.max(from + 1, Math.floor((c + 1) / cols * LEN));
+        let lo = Infinity, hi = -Infinity;
+        for (let i = from; i < to; i++) { if (a[i] < lo) lo = a[i]; if (a[i] > hi) hi = a[i]; }
+        g.moveTo(x0 + c + .5, mid - hi / scale * half); g.lineTo(x0 + c + .5, mid - lo / scale * half + .5);
+      }
+      g.stroke();
+    };
+
+    // 1. Layer 1's convolver output, in real units (the file's /16 on both sides undone).
+    const p1 = peak(l1), u1 = L.scale * L.scale;
+    let k = head(0, narrow ? `layer 1 output · dots: the 192 that count · peak ${(p1 * u1).toFixed(1)}`
+      : `layer 1 convolver output · ${LEN.toLocaleString()} samples · dots are the 192 that count · peak ${(p1 * u1).toFixed(1)}`);
+    envelope(l1, k, '#4a5d86', p1);
+    g.fillStyle = blue;
+    for (let i = 0; i < H; i++) {
+      const s = i * IN + IN - 1;
+      g.fillRect(x0 + s / LEN * (x1 - x0) - 1, k.mid - l1[s] / p1 * k.half - 1, 2.5, 2.5);
+    }
+
+    // 2. After bias, ReLU and the gate: 192 spikes.
+    const p2 = peak(hid);
+    k = head(1, narrow ? `after bias, ReLU, gate · 192 neurons · peak ${(p2 * L.reluDiv).toFixed(1)}`
+      : `after bias, ReLU and the click-track gate · 192 neurons · peak ${(p2 * L.reluDiv).toFixed(1)}`);
+    g.strokeStyle = cool; g.lineWidth = Math.max(1, (x1 - x0) / H * .45); g.beginPath();
+    for (let i = 0; i < H; i++) {
+      const s = i * IN + IN - 1, x = x0 + (i + .5) / H * (x1 - x0);
+      g.moveTo(x, k.mid + k.half); g.lineTo(x, k.mid + k.half - hid[s] / p2 * 2 * k.half);
+    }
+    g.stroke();
+
+    // 3. Layer 2's convolver output (plus bias): the logits are the last 37 samples.
+    const p3 = peak(logit);
+    k = head(2, narrow ? `layer 2 output · logits at the far right · peak ${p3.toFixed(1)}`
+      : `output channel (layer 2) · the logits are the last 37 samples · peak ${p3.toFixed(1)}`);
+    envelope(logit, k, '#7a5a2e', p3);
+    g.fillStyle = gold;
+    g.fillRect(x1 - 3, k.mid - k.half, 3, 2 * k.half);
+
+    // 4. Those 37 samples, one bar per character. Unlikely characters can sit hundreds below the top one,
+    // so the bars show only the top SPAN units: a bar's height is how close that logit is to the largest.
+    const SPAN = 12;
+    let top = -Infinity;
+    for (let o = 0; o < V; o++) top = Math.max(top, logit[FIRST + o]);
+    k = head(3, narrow ? `last 37 samples: the logits · top ${top.toFixed(1)} · bars: within ${SPAN} of it`
+      : `the last 37 samples, 4.6 ms: one logit per character · largest ${top.toFixed(1)} · bar height is how close to it (${SPAN} or more below is flat)`);
+    const bw = (x1 - x0) / V, floor = k.mid + k.half - 12, h4 = 2 * k.half - 14;
+    g.textAlign = 'center';
+    for (let o = 0; o < V; o++) {
+      const near = Math.max(0, 1 - (top - logit[FIRST + o]) / SPAN), x = x0 + o * bw;
+      g.fillStyle = o === latest.picked ? cool : gold;
+      g.fillRect(x + 1, floor - Math.max(1, near * h4), Math.max(1, bw - 2), Math.max(1, near * h4));
+      g.fillStyle = o === latest.picked ? cool : dim;
+      g.fillText(shown(L.vocab[o]), x + bw / 2, floor + 2);
+    }
+  }
+  new ResizeObserver(drawScope).observe(scope);
+
+  // ===================================================================
+  // Playback. Never part of the maths: this is only for ears.
+  // ===================================================================
+  const VOLUME = 0.15;     // hard cap, applied after every buffer is levelled to a peak of 1
+  let speaker = null;      // a normal AudioContext, created on the first click
+  let playing = null;
+
+  // Must be called from a click (or change) handler the first time: browsers won't start audio otherwise.
+  function wake() {
+    if (!speaker) speaker = new AudioContext();
+    if (speaker.state === 'suspended') speaker.resume();
+    $('quiet').disabled = false;
+  }
+
+  function stop() {
+    if (playing) { playing.onended = null; try { playing.stop(); } catch (e) {} playing.done(); playing = null; }
+  }
+
+  // Layer 1's output and the output channel of a render, each levelled to a peak of 0.5 and summed to mono.
+  function mixdown(rendered) {
+    const a = rendered.getChannelData(1), b = rendered.getChannelData(0), m = new Float32Array(a.length);
+    let pa = 1e-9, pb = 1e-9;
+    for (let i = 0; i < a.length; i++) { pa = Math.max(pa, Math.abs(a[i])); pb = Math.max(pb, Math.abs(b[i])); }
+    for (let i = 0; i < a.length; i++) m[i] = .5 * a[i] / pa + .5 * b[i] / pb;
+    return m;
+  }
+
+  // Play mono samples (recorded at the model's 8 kHz) at the capped volume. Resolves when the sound ends.
+  function play(samples, rate, what) {
+    stop();
+    let p = 1e-9;
+    for (let i = 0; i < samples.length; i++) p = Math.max(p, Math.abs(samples[i]));
+    const buf = speaker.createBuffer(1, samples.length, L.rate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < samples.length; i++) ch[i] = samples[i] / p;
+    const src = new AudioBufferSourceNode(speaker, { buffer: buf, playbackRate: rate });
+    const vol = new GainNode(speaker, { gain: VOLUME });
+    src.connect(vol).connect(speaker.destination);
+    $('heard').textContent = `Playing ${what}: ${(samples.length / L.rate / rate).toFixed(2)} s at ${Math.round(VOLUME * 100)}% volume`;
+    return new Promise(done => {
+      src.done = done;
+      src.onended = () => { if (playing === src) playing = null; done(); };
+      playing = src;
+      src.start();
+    });
+  }
+
+  $('hear').onclick = () => { if (latest) { wake(); play(mixdown(latest.rendered), 1, "this character's render"); } };
+  $('hearw').onclick = () => { wake(); play(wav.getChannelData(0), 1, 'the weights file'); };
+  $('quiet').onclick = () => { stop(); $('along').checked = false; $('heard').textContent = 'Stopped'; };
+  $('along').onchange = e => { if (e.target.checked) wake(); else stop(); };
+
+  // ===================================================================
+  // Plain-JavaScript reference: the same model as ordinary loops,
+  // from the CSS page's model.json rather than from the sound file
+  // ===================================================================
+  let jsModel = null;
+
+  async function jsReference() {
+    if (jsModel) return jsModel;
+    const M = await (await fetch('../css/model.json')).json();
+    const W1 = Float32Array.from(M.W1.flat());   // IN x H, row-major
+    const W2 = Float32Array.from(M.W2.flat());   // H x V, row-major
+    const fn = ctx => {
+      const e = new Float32Array(IN);
+      ctx.forEach((t, s) => e.set(M.emb[t], s * E));
+      const h = Float32Array.from(M.b1);
+      for (let i = 0; i < IN; i++) { const x = e[i]; for (let j = 0; j < H; j++) h[j] += x * W1[i * H + j]; }
+      for (let j = 0; j < H; j++) h[j] = Math.max(0, h[j]);
+      const o = Float32Array.from(M.b2);
+      for (let i = 0; i < H; i++) { const x = h[i]; for (let j = 0; j < V; j++) o[j] += x * W2[i * V + j]; }
+      return Array.from(o);
+    };
+    fn.M = M;
+    return jsModel = fn;
+  }
+
+  // Does the decoded sound file hold exactly model.json's floats (as float32, divided by 16)?
+  // Rebuilds the file's layout from model.json and compares bit patterns.
+  function wavCheck(M) {
+    const want = new Float32Array(L.samples), S = L.scale, f = Math.fround;
+    const at = n => L.sections[n][0];
+    M.emb.forEach((row, t) => row.forEach((v, e) => want[at('emb') + t * E + e] = f(v) / S));
+    for (let i = 0; i < H; i++) {
+      for (let j = 0; j < IN; j++) want[at('ir1') + i * IN + IN - 1 - j] = f(M.W1[j][i]) / S;
+      want[at('bias1') + i * IN + IN - 1] = f(M.b1[i]) / S;
+      for (let o = 0; o < V; o++) want[at('ir2') + (H - 1 - i) * IN + o] = f(M.W2[i][o]) / S;
+    }
+    M.b2.forEach((v, o) => want[at('bias2') + o] = f(v) / S);
+    const got = wav.getChannelData(0);
+    const a = new Uint32Array(want.buffer), b = new Uint32Array(got.buffer, got.byteOffset, got.length);
+    let different = got.length === want.length ? 0 : Math.abs(got.length - want.length);
+    for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) different++;
+    return { samples: got.length, different };
+  }
+
+  // Run n random contexts through both engines: time each, and compare their logits.
+  async function race(n = 40) {
+    run++;   // stop any generation in progress
+    stop();
+    const ref = await jsReference();
+    const ctxs = Array.from({ length: n },
+      () => Array.from({ length: L.ctx }, () => Math.floor(Math.random() * V)));
+
+    let t = performance.now();
+    const audioOut = [];
+    for (const c of ctxs) audioOut.push((await forward(c)).logits);
+    const audioMs = (performance.now() - t) / n;
+
+    // The JS loop is too fast to time once (the browser's clock is coarse), so run it for half a second.
+    t = performance.now();
+    let k = 0;
+    while (performance.now() - t < 500) { ref(ctxs[k % n]); k++; }
+    const jsMs = (performance.now() - t) / k;
+
+    let err = 0, agree = 0, big = 0;
+    ctxs.forEach((c, i) => {
+      const a = audioOut[i], r = ref(c);
+      err = Math.max(err, ...a.map((v, j) => Math.abs(v - r[j])));
+      big = Math.max(big, ...r.map(Math.abs));
+      if (a.indexOf(Math.max(...a)) === r.indexOf(Math.max(...r))) agree++;
+    });
+    const w = wavCheck(ref.M);
+    return {
+      audioMs, jsMs, slower: audioMs / jsMs,
+      maxLogitError: +err.toPrecision(3), largestLogit: +big.toFixed(2), argmaxAgree: `${agree} of ${n}`,
+      rendersPerChar: 1, wavSamples: w.samples, wavSamplesDifferent: w.different, wavBitExact: w.different === 0,
+    };
+  }
+
+  window.selfTest = async n => { await ready; const r = await race(n); console.log(r); return r; };
+
+  $('race').onclick = async e => {
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'Racing…';
+    await new Promise(r => setTimeout(r, 30));
+    const r = await race(40);
+    $('r-audio').textContent = r.audioMs.toFixed(1) + ' ms';
+    $('r-js').textContent = (r.jsMs * 1000).toFixed(0) + ' µs';
+    $('r-x').textContent = Math.round(r.slower).toLocaleString() + '×';
+    $('r-ok').textContent = `${r.argmaxAgree.replace(' of ', '/')} · ${r.maxLogitError.toFixed(5)}`;
+    $('r-wav').textContent = r.wavBitExact
+      ? `weights.wav decoded to ${r.wavSamples.toLocaleString()} samples, every one bit-for-bit equal to model.json.`
+      : `weights.wav did not decode exactly: ${r.wavSamplesDifferent.toLocaleString()} of ${r.wavSamples.toLocaleString()} samples differ from model.json.`;
+    btn.disabled = false;
+    btn.textContent = 'Race again';
+  };
+
+  // ===================================================================
+  // Start
+  // ===================================================================
+  $('f').onsubmit = e => { e.preventDefault(); if (L) generate(); };
+  const ready = load().then(() => {
+    for (const id of ['go', 'race', 'hearw']) $(id).disabled = false;
+    window.forward = forward;   // handy from the console: (await forward([0,0,0,0,0,0,0,0])).logits
+    generate();
+  }).catch(err => { $('stat').textContent = 'Could not load the weights: ' + err.message; throw err; });
+}
+</script>
+</body>
+</html>

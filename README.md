@@ -1,7 +1,7 @@
 # Gradient Decent
 
 Small language models run by the parts of a browser that were built for drawing and styling, not for maths: canvas
-blend modes, CSS colours, and whatever else turns out to be able to multiply. No WebGPU, WebGL or WASM in the
+blend modes, CSS colours and transforms, the audio engine, and whatever else turns out to be able to multiply. No WebGPU, WebGL or WASM in the
 forward pass.
 
 The name is the joke. Gradient descent is how a model gets trained. Nothing here is trained and nothing descends:
@@ -9,7 +9,7 @@ these only run models, and they do it with actual colours and gradients. So it's
 
 Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
 
-There are four so far. The first two run on the canvas; the other two do it in CSS:
+There are six so far:
 
 | | model | what it does |
 |---|---|---|
@@ -17,6 +17,8 @@ There are four so far. The first two run on the canvas; the other two do it in C
 | [`stories/`](stories/) | [hidude562/tiny-tiny-stories](https://huggingface.co/hidude562/tiny-tiny-stories) (MIT), 1M ternary weights, 5 layers | Wobbly children's stories from a prompt. |
 | [`css/`](css/) | trained here on lowercase Tiny Shakespeare, 21K weights, one hidden layer | Shakespeare-shaped babble, one character at a time, with the whole forward pass in a stylesheet. |
 | [`no-js/`](no-js/) | the same 21K-weight model as `css/` | The same babble from a page with no script at all: the clock, memory, sampling and text are CSS too. |
+| [`cards/`](cards/) | the same model as `css/` | The same babble, with both matrix multiplies done by CSS transforms on a wall of tilting cards. |
+| [`audio/`](audio/) | the same model as `css/`, shipped as a 5-second float WAV | The same babble, with the whole forward pass in one Web Audio render per character. You can play the weights and each character's render. |
 
 ## The canvas ones
 
@@ -77,6 +79,62 @@ and still writes text by itself.
 In headless Chrome 153 on a CPU it wrote 0.8 characters a second, and at temperature 0 all 37 characters of a
 45-second run matched a Python run of the same weights. `python3 tools/compile_nojs.py css/model.json
 no-js/index.html` rebuilds it from [`tools/nojs_template.html`](tools/nojs_template.html).
+
+## The transform one
+
+[`cards/`](cards/) runs the same model (it reads `css/model.json`) with the matrix maths done by the transform
+engine. A `transform` list is a product of 4×4 matrices, and the computed `transform` is that product multiplied
+out to one `matrix3d()`.
+
+- **A neuron is a transform list.** Every matrix has an input in its depth slot and two constants in its
+  perspective row. Multiplying them down the list adds up input × weight in the two slots that tilt the element,
+  so each card ends up tilted by two neurons. A layer-1 list is 74 matrices, a layer-2 list is 194.
+- **The constants are differences of neighbouring weights**, worked out at build time, because an input gets
+  multiplied by every constant after it. The bias is one more input fixed at 1.
+- **The cards on the page are the calculation.** The script reads the result out of the same `transform` that
+  tilts each card. The walls show the tilt scaled down (`scaleZ()` on the parent) so it stays on screen.
+- **ReLU is not a transform.** A transform list is linear, so the script copies 192 numbers, as text, from the
+  first wall's computed transforms into variables on the second, where each is used as `max(0, var(--h5))`.
+
+So: transforms do every multiply, add and bias in both layers; class selectors do the embedding lookup; CSS
+`max()` does the ReLU; JavaScript sets class names, copies the 192 numbers across, reads 19 matrices back and
+samples. In headless Chrome 153 it matches a plain JavaScript run to about 0.0007 on logits from −270 to 13 (top
+character 40 of 40; the limit is that Chrome prints a computed matrix with six significant digits) at 50 to 90 ms
+per character, around a thousand times slower than the JavaScript loop. The stylesheet is 812 KB: 10,790
+`matrix3d()` functions for 21K weights. `window.selfTest()` runs the comparison.
+
+```
+python3 tools/compile_cards.py css/model.json tools/cards_template.html cards/index.html
+```
+
+
+## The audio one
+
+[`audio/`](audio/) runs the `css/` model as a Web Audio graph in an `OfflineAudioContext`. One render per character,
+with no script touching the numbers between the layers.
+
+- **The weights are a sound file.** `audio/weights.wav` is mono, 8 kHz, 32-bit float, every weight divided by 16.
+  `decodeAudioData` returns it bit for bit, as long as the decoding context runs at 8 kHz too.
+- **A matrix multiply is a `ConvolverNode`.** Each neuron's weights are a 72-sample slot of the impulse response,
+  written back to front. The dot product is the last sample of the slot; the rest is junk.
+- **ReLU is a `WaveShaperNode`** with the three-point curve `[0, 0, 1]`, after `GainNode`s bring the signal inside
+  the −1…1 the node clamps to.
+- **A click track picks out the answers.** A `GainNode` whose gain is driven by a track that is 1 on every 72nd
+  sample mutes the junk, and layer 2's impulse response is spaced the same 72 samples apart, so layer 1 feeds
+  layer 2 directly and the 37 logits come out as the last 37 samples.
+
+The script builds the graph, copies 8 embedding rows into the input buffer, reads 37 samples and samples a
+character. In headless Chrome 153 it matches a plain JavaScript run to about 0.0002 on logits as large as 400 (top
+character 40 of 40) at 10 to 45 ms per character, a few hundred times slower than the plain loop.
+`window.selfTest()` runs the comparison and the WAV check. Playback is there but nobody has heard it yet: the test
+browser has no speakers.
+
+Rebuild the sound file from the CSS page's model:
+
+```
+python3 tools/export_audio.py css/model.json audio/weights.wav audio/layout.json
+```
+
 
 ## Run it
 

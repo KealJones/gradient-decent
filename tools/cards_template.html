@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<!--
+  Gradient Decent / cards
+
+  A tiny character-level language model whose matrix maths is done by CSS transforms.
+  This file is a template: tools/compile_cards.py fills in the placeholders and writes cards/index.html.
+
+    CSS      the generated stylesheet (embedding rules and one transform list per card), at the end of <style>
+    VOCAB    the 37-character vocabulary, in the script
+    META     sizes and stats, in the script
+    EXCERPT  a few real lines of the generated stylesheet, shown on the page
+  (Each placeholder is the name wrapped in a CSS comment, or an HTML comment for EXCERPT.)
+
+  Who does what:
+    transforms   every multiply and add in both layers, including the biases
+    other CSS    the embedding lookup (class selectors), the ReLU (max() on the way into layer 2)
+    JS           characters -> class names, copying 192 numbers from wall 1 to wall 2 as text,
+                 reading 19 computed transforms back, softmax + sampling, the loop
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Cards · Gradient Decent</title>
+  <meta name="description" content="A tiny language model whose matrix multiplies are done by the CSS transform engine: every neuron is a list of matrix3d() functions, and the answer is how far a card ends up tilted.">
+
+  <!-- Shared look for all the Gradient Decent pages (dark theme, monospace, header gradient). -->
+  <link rel="stylesheet" href="../lib/page.css?v=4">
+
+  <style>
+    /* =====================================================================
+       Page layout. Hand-written; the model's stylesheet is appended after.
+       ===================================================================== */
+    .answer { margin-bottom: 0; }
+    #out {
+      white-space: pre-wrap;
+      min-height: 150px;
+      padding: 16px;
+      margin: 0 0 6px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--bg);
+      font: 18px/1.6 Georgia, "Iowan Old Style", serif;
+    }
+    #out b { font-weight: 400; color: var(--dim); }   /* the prompt, dimmed */
+    #stat { margin-bottom: 8px; }
+    label.t { color: var(--dim); font-size: 13px; display: flex; gap: 8px; align-items: center; }
+    h3.small { margin: 22px 0 8px; font-size: 15px; }
+    .split { margin-top: 22px; }
+    .matrix { display: inline-block; white-space: pre; color: #cfcabf; }
+
+    /* ---- The walls ----
+       .stage is the camera: `perspective` makes its child 3D. Each wall is a grid of cards that keeps its
+       children in the same 3D space (preserve-3d), leans back a little so the tilts catch the eye, and
+       squashes depth with scaleZ() so the big numbers stay on screen. None of that touches a card's own
+       `transform`, which is the thing the script reads. */
+    .stage {
+      perspective: 900px;
+      perspective-origin: 50% 40%;
+      overflow: hidden;
+      padding: 26px 14px 30px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: radial-gradient(ellipse at 50% 0%, #1a1a21, var(--bg) 75%);
+    }
+    .wall {
+      display: grid;
+      gap: 9px;
+      margin: 0 auto;
+      transform-style: preserve-3d;
+    }
+    /* scaleZ is the "scaled-down copy": a card's real tilt is the neuron's value (often 5 or more, which is
+       nearly edge-on). The wall shows 15% of it for layer 1 and 4% for the logits. */
+    #w1 { grid-template-columns: repeat(24, minmax(0, 1fr)); transform: rotateX(24deg) scaleZ(0.15); }
+    #w2 { grid-template-columns: repeat(19, minmax(0, 1fr)); max-width: 900px; transform: rotateX(24deg) scaleZ(0.04); }
+
+    /* A card. Its transform comes from the generated rules below; everything here is paint. */
+    .wall i {
+      display: grid;
+      place-items: center;
+      aspect-ratio: 1;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, .35);
+      font: 600 11px/1 ui-monospace, Menlo, Consolas, monospace;
+      font-style: normal;
+      color: #111;
+      white-space: pre;
+    }
+    #w1 i { background: linear-gradient(135deg, #7df0b6, var(--cool) 45%, #14724a); }
+    #w2 i { background: linear-gradient(135deg, #ffe58a, #ffd23f 45%, var(--hot)); }
+
+    @media (max-width: 700px) {
+      .stage { padding: 18px 8px 22px; perspective: 600px; }
+      .wall { gap: 5px; }
+      #w1 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+      #w2 { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+      .wall i { font-size: 9px; border-radius: 3px; }
+    }
+/*CSS*/
+  </style>
+</head>
+
+<body>
+<main>
+  <p class="crumb"><a href="../">Gradient Decent</a> / cards</p>
+  <h1><span>Can CSS transforms multiply matrices?</span></h1>
+  <p class="lede">
+    A tiny character-level model, trained on lowercase Shakespeare, whose two matrix multiplies are done by the
+    part of the browser that tilts and slides elements. Every pair of neurons is a card with a long
+    <code>transform</code> list, and the answer is how far the card ends up tilted.
+  </p>
+  <p class="answer">
+    Yes. A transform list is a product of 4×4 matrices, and with the right matrices that product is a running sum
+    of input × weight. Chrome multiplies each list out and hands back one <code>matrix3d()</code> with two neurons
+    in it. It matches a plain JavaScript run of the same weights to about <span data-k="err"></span> and picks the
+    same top character every time. It is also around a thousand times slower than the JavaScript loop, and it can't do
+    the ReLU: that is one CSS <code>max()</code> per number, with a script carrying the numbers from the first
+    wall of cards to the second.
+  </p>
+
+  <!-- ================================================================
+       Run it. #m carries the class names (the input); both walls are
+       inside it so the cards inherit the --x variables.
+       ================================================================ -->
+  <section style="margin-top: 28px">
+    <div class="bench">
+      <h2 class="big">Run it</h2>
+      <form id="f">
+        <input id="seed" type="text" value="first citizen:\n" aria-label="Prompt">
+        <button id="go">Generate</button>
+        <label class="t">temperature <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.7"></label>
+      </form>
+
+      <div id="m">
+        <div id="out"></div>
+        <div id="stat"></div>
+        <h2>Hidden layer: 192 neurons on 96 cards. Each card's left-to-right tilt is one neuron and its
+          top-to-bottom tilt is the next.</h2>
+        <div class="stage"><div class="wall" id="w1"></div></div>
+        <h2>Logits: 37 characters on 19 cards, two to a card. The left character is the left-to-right tilt, the
+          right one is the top-to-bottom tilt. A card tipping steeply away is a character the model has ruled out.</h2>
+        <div class="stage"><div class="wall" id="w2"></div></div>
+      </div>
+      <p class="note">
+        The cards aren't a picture of the maths drawn afterwards. Each card's <code>transform</code> is the
+        calculation, and the script reads the result out of that same property. What you see is flattened so it
+        stays on screen: the walls show 15% of the real tilt for the hidden layer and 4% for the logits (a <code>scaleZ()</code> on
+        the wall, which doesn't change what the script reads), and both walls lean back a little so the tilts are
+        easier to see. Each wall also drifts towards you by the sum of its inputs, which is a by-product.
+      </p>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       Race it: the transform engine vs a plain JS loop, same weights.
+       ================================================================ -->
+  <section>
+    <h2 class="big">Race it in your browser</h2>
+    <p class="section-lede">
+      Runs 40 random 8-character contexts through both engines on this exact model: the cards, and a plain
+      JavaScript loop over the same weights from <code>model.json</code>. Same as <code>window.selfTest()</code>.
+    </p>
+    <button id="race" class="ghost" type="button">Race the cards against JavaScript</button>
+    <div class="metrics">
+      <div class="metric"><span>Cards, per character</span><strong id="r-cards">–</strong></div>
+      <div class="metric"><span>JavaScript, per character</span><strong id="r-js">–</strong></div>
+      <div class="metric"><span>Cards are slower by</span><strong id="r-x">–</strong></div>
+      <div class="metric"><span>Same top character / largest logit gap</span><strong id="r-ok">–</strong></div>
+    </div>
+  </section>
+
+  <!-- ================================================================
+       How it works.
+       ================================================================ -->
+  <section>
+    <h2 class="big">How a transform list adds up input × weight</h2>
+    <p class="section-lede">
+      Every matrix in every list has the same shape. It leaves x and y alone, slides the card towards you by
+      <i>a</i>, and has two numbers <i>p</i> and <i>q</i> in the bottom row, the one normally used for perspective.
+      Multiply two of them and the first one's <i>a</i> gets multiplied by the second one's <i>p</i> and <i>q</i>,
+      and lands in the row that sets how z depends on x and y. That is a tilt.
+    </p>
+    <pre><span class="matrix">│ 1  0  0  0 │   │ 1   0   0  0  │   │ 1     0     0  0    │
+│ 0  1  0  0 │ × │ 0   1   0  0  │ = │ 0     1     0  0    │
+│ 0  0  1  a │   │ 0   0   1  a' │   │ a·p'  a·q'  1  a+a' │   ← tilt, and depth
+│ p  q  0  1 │   │ p'  q'  0  1  │   │ p+p'  q+q'  0  1    │</span></pre>
+    <p class="note">
+      Keep multiplying and the tilt keeps adding: each new matrix contributes (everything in the <i>a</i> slots so
+      far) × (its own <i>p</i> and <i>q</i>). So the inputs go in the <i>a</i> slots as <code>var()</code>s, and
+      the <i>p</i>, <i>q</i> slots hold constants chosen so each input ends up multiplied by its own weight. Since
+      an input meets every <i>p</i> after it, those constants are the differences between neighbouring weights,
+      worked out when the page is built. The bias is one more input whose value is always 1. At the end the bottom
+      row has cancelled back to zero and the matrix is a plain tilt: z = s₁·x + s₂·y, where s₁ and s₂ are two
+      neurons.
+    </p>
+
+    <h3 class="small">How one character gets made</h3>
+    <ol class="pipe">
+      <li><span class="tag js">JS</span><div><b>Tokenise.</b>
+        <p>Take the last 8 characters, look up each one's number in the 37-character vocabulary, and write them as
+          class names on one div: <code>s0t1 s1t20 … s7t14</code> means "token 1 at position 0" and so on.</p></div></li>
+      <li><span class="tag css">CSS</span><div><b>Embed.</b>
+        <p>Each of the <span data-k="embRules"></span> class rules sets nine custom properties for one token at one
+          position. The 8 positions × 9 numbers are the 72 inputs, <code>--x0</code> to <code>--x71</code>. This is
+          a selector lookup, not transform maths.</p></div></li>
+      <li><span class="tag css">CSS</span><div><b>Layer 1: 72 inputs to 192 neurons, by transforms.</b>
+        <p>Each of the <span data-k="cards1"></span> cards has a <code>transform</code> of
+          <span data-k="per1"></span> <code>matrix3d()</code> functions: one for the bias, one per input, one to
+          close. Chrome multiplies the list into a single matrix. All 13,824 multiplies and the adds, biases
+          included, happen in that product.</p></div></li>
+      <li><span class="tag js">JS</span><div><b>Carry 192 numbers across.</b>
+        <p>Read each card's computed <code>transform</code>, which comes back as one <code>matrix3d(…)</code>, cut
+          out the 3rd and 7th numbers (the two tilts), and set them as <code>--h0</code> to <code>--h191</code> on
+          the second wall. The text is copied as it is; the script does no arithmetic on it.</p></div></li>
+      <li><span class="tag css">CSS</span><div><b>ReLU.</b>
+        <p>Layer 2 uses each number as <code>max(0, var(--h5))</code>. That is a CSS maths function, not the
+          transform engine. A transform list is linear all the way through, so it can't clamp anything, and this
+          is why the two layers can't be one long list.</p></div></li>
+      <li><span class="tag css">CSS</span><div><b>Layer 2: 192 neurons to 37 logits, by transforms.</b>
+        <p>The same trick again: <span data-k="cards2"></span> cards of <span data-k="per2"></span> matrices each,
+          two logits to a card (the 38th is a spare).</p></div></li>
+      <li><span class="tag js">JS</span><div><b>Read back and sample.</b>
+        <p>Read the 19 computed transforms, take the two tilts from each as numbers, softmax with temperature and
+          pick one character. Then go back to step 1 with it on the end.</p></div></li>
+    </ol>
+
+    <h3 class="small">What the compiled stylesheet looks like</h3>
+    <pre><!--EXCERPT--></pre>
+    <p class="note">
+      Real lines from this page's stylesheet. <code>matrix3d()</code> lists its 16 numbers column by column, so
+      <i>p</i> and <i>q</i> are the 4th and 8th and <i>a</i> is the 15th. The two layers are
+      <span data-k="matrices"></span> matrices in <span data-k="cssKB"></span> KB of CSS for
+      <span data-k="weights"></span> weights. View the page source to read all of it.
+    </p>
+
+    <div class="split">
+      <div>
+        <h3><span class="tag js">JS</span> no arithmetic until the softmax</h3>
+        <ul>
+          <li>Characters to class names</li>
+          <li>Copy 192 numbers from the first wall's computed transforms into variables on the second, as text</li>
+          <li>Read 37 logits from 19 computed transforms</li>
+          <li>Softmax, temperature and sampling</li>
+          <li>The loop, one character every 16 ms</li>
+        </ul>
+      </div>
+      <div>
+        <h3><span class="tag css">CSS</span> the matrix maths</h3>
+        <ul>
+          <li>Transform engine: every multiply and add in both layers, and both bias vectors</li>
+          <li>Transform engine: the cards you see, which are the same elements</li>
+          <li>Class selectors: the embedding lookup</li>
+          <li><code>max()</code>: the ReLU</li>
+          <li>Build time, in Python: the differences between neighbouring weights</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="big">What it says</h2>
+    <ul class="says">
+      <li><strong>A transform list is a general 4×4 matrix product, and Chrome will give you the answer.</strong>
+        The computed <code>transform</code> of an element is its whole list multiplied out to one
+        <code>matrix()</code> or <code>matrix3d()</code>. Nothing has to be drawn for that to happen: asking
+        for the computed style is enough.</li>
+      <li><strong>Four by four is enough for a dot product of any length.</strong> The matrices used here only ever
+        add into each other or multiply once, so a list can be as long as the layer is wide. A list of 100,000
+        matrices worked in a test, with no sign of a limit.</li>
+      <li><strong>The answer comes back with six significant digits.</strong> Chrome multiplies in 64-bit floats
+        (the leftovers in the bottom row cancel to about 1e-16) but prints the computed matrix with six digits.
+        Six digits on the hidden layer turns into a logit error of about <span data-k="err"></span>, on logits
+        that run from about −270 to +13. The top character has matched the JavaScript run every time.</li>
+      <li><strong>It is slow, and slower than the stylesheet version.</strong> <span data-k="ms"></span> ms a
+        character in headless Chrome, against about 31 ms for the same model done with CSS colours and a
+        JavaScript loop in tens of microseconds. Layer 1 is about three quarters of it. The multiplying is not
+        the slow part: a single list of 100,000 matrices took 70 ms, parsing included. Most of the time goes on
+        putting variables into <span data-k="matrices"></span> <code>matrix3d()</code> functions and parsing them
+        again for every character. The same lists written out with plain numbers ran three to four times faster.</li>
+      <li><strong>Every weight is about <span data-k="bytesPerWeight"></span> bytes of text.</strong> A whole
+        <code>matrix3d()</code>, thirteen fixed numbers and all, carries two weights. As a weight format it is
+        worse than the colour one.</li>
+      <li><strong>ReLU is the wall.</strong> Without it the second layer's cards could sit inside the first's and
+        the browser would chain the lot. A network with no activation function is just one matrix, though, so
+        that would not be a model worth running.</li>
+    </ul>
+    <h3 class="small">Gotchas found on the way</h3>
+    <ul class="says">
+      <li>If the result happens to be a flat 2D matrix, Chrome prints the short <code>matrix(a, b, c, d, e, f)</code>
+        form with six numbers instead of sixteen. A reader that always takes "the 3rd number" gets the wrong one.</li>
+      <li>Arguments are clamped to the 32-bit float range, so <code>1e39</code> quietly becomes
+        <code>3.40282e+38</code>. Below that they are kept as 64-bit: 16777217 − 16777216 came out as 1 with
+        <code>matrix3d()</code>, and as 0 with two <code>translateX()</code> lengths.</li>
+      <li>Round the weights, then take the differences. Rounding the differences instead lets every rounding error
+        ride along the rest of the list, which made the hidden layer about ten times less accurate.</li>
+      <li>Read all of the first wall before writing anything to the second. Alternating a write to one wall with
+        a read from the other made Chrome restyle 96 times a character: 2.7 seconds instead of 50 ms.</li>
+      <li>A <code>transition</code> on the cards would look lovely and break everything: straight after a
+        change the computed transform is still the old pose, not the answer.</li>
+      <li>The inputs sit in the depth slot on purpose. With the weights there and the inputs in the bottom row,
+        the sum of the inputs is left in the perspective row at the end, and a test card with −0.2 there drew as
+        a shape several times its size.</li>
+      <li><code>getBoundingClientRect()</code> also carries the answer, as where a transformed box lands. Through
+        a fixed parent that turns depth into sideways movement it gave a tilt back to about seven digits, one
+        more than the printed matrix, and the box's edges even do a ReLU for free (the right edge of a box
+        stretched from 0 to <i>s</i> is max(0, <i>s</i>)). It isn't used here because it measures the box as
+        drawn, so the camera and the lean on the walls would be mixed in, and the cards on show would have to
+        be copies.</li>
+      <li>A <code>ResizeObserver</code> can't read any of this. It fires when layout size changes, and a transform
+        never changes layout: it stayed silent in a test. A scroll box's <code>scrollWidth</code> does follow a
+        transformed child, but only to whole pixels. <code>getBoxQuads()</code> isn't in Chrome.</li>
+      <li>Only tried in Chrome. Other browsers may print the computed matrix differently.</li>
+    </ul>
+  </section>
+</main>
+
+<script>
+{
+  // ===================================================================
+  // Data filled in by tools/compile_cards.py
+  // ===================================================================
+  const VOCAB = /*VOCAB*/;   // the 37 characters, in token order
+  const META = /*META*/;     // ctx (8), H (192), card and matrix counts, plus stats for the page
+
+  // Measured in headless Chrome 153 on CPU (see README). Shown in the text; the race is the live version.
+  META.err = 0.001;
+  META.ms = '50 to 90';
+
+  const $ = id => document.getElementById(id);
+  const m = $('m');           // carries the class names: the model's input
+  const w1 = $('w1'), w2 = $('w2');
+  const out = $('out');
+
+  // Fill in the "<span data-k=...>" numbers in the text from META.
+  for (const el of document.querySelectorAll('[data-k]')) el.textContent = META[el.dataset.k].toLocaleString();
+
+  // The cards. One <i> per pair of neurons; the generated CSS gives each its transform list.
+  w1.innerHTML = '<i></i>'.repeat(META.cards1);
+  const show = c => c === '\n' ? '↵' : c === ' ' ? '␣' : c;
+  for (let j = 0; j < META.cards2; j++) {
+    const el = document.createElement('i');
+    el.textContent = show(VOCAB[2 * j]) + ' ' + (VOCAB[2 * j + 1] ? show(VOCAB[2 * j + 1]) : '·');
+    w2.append(el);
+  }
+
+  // ===================================================================
+  // The forward pass: write class names, copy tilts across, read tilts back
+  // ===================================================================
+
+  // A live computed-style object per card. Reading .transform forces a style recalc when its inputs changed,
+  // and that recalc is where Chrome multiplies the card's transform list out.
+  const cs1 = [...w1.children].map(el => getComputedStyle(el));
+  const cs2 = [...w2.children].map(el => getComputedStyle(el));
+
+  // The two tilts of a computed transform, as text. A finished card is
+  //   matrix3d(1, 0, s1, 0,   0, 1, s2, 0,   0, 0, 1, 0,   0, 0, depth, 1)
+  // so they are the 3rd and 7th numbers. If both tilts are exactly 0 the matrix is flat and Chrome prints the
+  // six-number matrix(...) form (or "none") instead.
+  function tilts(s) {
+    if (!s.startsWith('matrix3d(')) return ['0', '0'];
+    const v = s.slice(9, -1).split(', ');
+    return [v[2], v[6]];
+  }
+
+  // Run the model on 8 token ids and return 37 logits.
+  function logits(ctx) {
+    // Input: "token t at position s" for each slot. The embedding rules turn these into --x0 .. --x71,
+    // which every layer 1 card inherits.
+    m.className = ctx.map((t, s) => `s${s}t${t}`).join(' ');
+
+    // Layer 1 happens when these are read. Copy the 192 tilts into --h variables on the second wall, as text.
+    // (The ReLU is the max(0, ...) around each var(--h) in the layer 2 rules.)
+    // Read all 96 before writing any: a write to the second wall followed by a read from the first would make
+    // Chrome restyle everything in between, 96 times over.
+    const h = cs1.map(c => tilts(c.transform));
+    h.forEach(([a, b], j) => {
+      w2.style.setProperty('--h' + 2 * j, a);
+      w2.style.setProperty('--h' + (2 * j + 1), b);
+    });
+
+    // Layer 2 happens when these are read.
+    const l = [];
+    for (let j = 0; j < cs2.length; j++) l.push(...tilts(cs2[j].transform).map(Number));
+    return l.slice(0, VOCAB.length);   // drop the spare
+  }
+
+  // Softmax with temperature T, then draw one token.
+  function sample(l, T) {
+    const mx = Math.max(...l);
+    const p = l.map(x => Math.exp((x - mx) / T));
+    let r = Math.random() * p.reduce((a, b) => a + b);
+    for (let i = 0; i < p.length; i++) if ((r -= p[i]) <= 0) return i;
+    return p.length - 1;
+  }
+
+  // ===================================================================
+  // Generation loop
+  // ===================================================================
+  let run = 0;   // bumped to cancel an older generation when a new one starts
+
+  async function generate() {
+    const id = ++run;
+    // Lowercase the prompt and turn a typed "\n" into a real newline (the model was trained on lowercase text).
+    const seed = $('seed').value.toLowerCase().replace(/\\n/g, '\n');
+    let toks = [...seed].map(c => VOCAB.indexOf(c)).filter(i => i >= 0);
+    while (toks.length < META.ctx) toks.unshift(0);   // left-pad short prompts with newlines (token 0)
+
+    out.innerHTML = '<b></b>';
+    out.firstChild.textContent = seed;
+    const gen = document.createTextNode('');
+    out.append(gen);
+
+    let ms = 0;
+    for (let n = 1; n <= 400 && id === run; n++) {
+      const t0 = performance.now();
+      const l = logits(toks.slice(-META.ctx));       // the transform engine does the work in here
+      ms += performance.now() - t0;
+
+      const t = sample(l, +$('temp').value);
+      toks.push(t);
+      gen.data += VOCAB[t];
+      $('stat').textContent = `${n} chars · ${(ms / n).toFixed(1)} ms per char in the transform engine`;
+      await new Promise(r => setTimeout(r, 16));      // yield so the page (and the cards) repaint
+    }
+  }
+
+  // ===================================================================
+  // Plain-JavaScript reference: the same model as ordinary loops
+  // ===================================================================
+  let jsModel = null;
+
+  async function jsReference() {
+    if (jsModel) return jsModel;
+    const M = await (await fetch('../css/model.json')).json();   // the same file css/ uses
+    const H = M.H, V = M.vocab.length, IN = M.ctx * M.E;
+    const W1 = Float32Array.from(M.W1.flat());   // IN x H, row-major
+    const W2 = Float32Array.from(M.W2.flat());   // H x V, row-major
+    jsModel = ctx => {
+      const e = new Float32Array(IN);              // concatenated embeddings
+      ctx.forEach((t, s) => e.set(M.emb[t], s * M.E));
+      const h = Float32Array.from(M.b1);           // layer 1 + ReLU
+      for (let i = 0; i < IN; i++) { const x = e[i]; for (let j = 0; j < H; j++) h[j] += x * W1[i * H + j]; }
+      for (let j = 0; j < H; j++) h[j] = Math.max(0, h[j]);
+      const o = Float32Array.from(M.b2);           // layer 2
+      for (let i = 0; i < H; i++) { const x = h[i]; for (let j = 0; j < V; j++) o[j] += x * W2[i * V + j]; }
+      return Array.from(o);
+    };
+    return jsModel;
+  }
+
+  // Run n random contexts through both engines: time each, and compare their logits.
+  async function race(n = 40) {
+    run++;   // stop any generation in progress so it doesn't change the cards mid-race
+    const ref = await jsReference();
+    const ctxs = Array.from({ length: n },
+      () => Array.from({ length: META.ctx }, () => Math.floor(Math.random() * VOCAB.length)));
+
+    let t = performance.now();
+    const cardOut = ctxs.map(logits);
+    const cardsMs = (performance.now() - t) / n;
+
+    // The JS loop is too fast to time once (the browser's clock is coarse), so run it for half a second.
+    t = performance.now();
+    let k = 0;
+    while (performance.now() - t < 500) { ref(ctxs[k % n]); k++; }
+    const jsMs = (performance.now() - t) / k;
+
+    let err = 0, agree = 0;
+    ctxs.forEach((c, i) => {
+      const a = cardOut[i], r = ref(c);
+      err = Math.max(err, ...a.map((v, j) => Math.abs(v - r[j])));
+      if (a.indexOf(Math.max(...a)) === r.indexOf(Math.max(...r))) agree++;
+    });
+    return { cardsMs, jsMs, slower: cardsMs / jsMs, maxLogitError: +err.toFixed(5), argmaxAgree: `${agree} of ${n}` };
+  }
+
+  // Console helper, same name as on the other pages.
+  window.selfTest = async n => { const r = await race(n); console.log(r); return r; };
+
+  $('race').onclick = async e => {
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'Racing…';
+    await new Promise(r => setTimeout(r, 30));   // let the button repaint before the page is busy
+    const r = await race(40);
+    $('r-cards').textContent = r.cardsMs.toFixed(1) + ' ms';
+    $('r-js').textContent = (r.jsMs * 1000).toFixed(0) + ' µs';
+    $('r-x').textContent = Math.round(r.slower).toLocaleString() + '×';
+    $('r-ok').textContent = `${r.argmaxAgree.replace(' of ', '/')} · ${r.maxLogitError.toFixed(4)}`;
+    btn.disabled = false;
+    btn.textContent = 'Race again';
+  };
+
+  // ===================================================================
+  // Start
+  // ===================================================================
+  $('f').onsubmit = e => { e.preventDefault(); generate(); };
+  window.logits = logits;   // handy from the console: logits([0,0,0,0,0,0,0,0])
+  window.VOCAB = VOCAB;
+  generate();
+}
+</script>
+</body>
+</html>

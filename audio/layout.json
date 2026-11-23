@@ -1,0 +1,1 @@
+{"vocab": "\n abcdefghijklmnopqrstuvwxyz.,;:!?'-&", "ctx": 8, "E": 9, "IN": 72, "H": 192, "V": 37, "rate": 8000, "scale": 16.0, "reluDiv": 32.0, "hmax": 19.195, "samples": 41842, "sections": {"emb": [0, 333], "ir1": [333, 13824], "bias1": [14157, 13824], "ir2": [27981, 13824], "bias2": [41805, 37]}}

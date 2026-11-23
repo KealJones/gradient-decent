@@ -15,12 +15,13 @@
   .card p { color:var(--dim); font-size:14px; margin:0 }
   .card .facts { font-size:12px; color:var(--dim); margin-top:auto; padding-top:8px; border-top:1px solid var(--line) }
   .tag.other { background:#b9b4a8 }
+  .tag.audio { background:#8fb4ff }
 </style>
 </head>
 <body>
 <main>
   <h1><span>Gradient Decent</span></h1>
-  <p class="lede">Small language models run by the parts of a browser that were built for drawing and styling, not for maths. Canvas blend modes, CSS colours, and whatever else turns out to be able to multiply.</p>
+  <p class="lede">Small language models run by the parts of a browser that were built for drawing and styling, not for maths. Canvas blend modes, CSS colours and transforms, the audio engine, and whatever else turns out to be able to multiply.</p>
   <p class="answer">The name is the joke. Gradient descent is how a model gets trained. Nothing here is trained and nothing descends: these pages only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.</p>
 
   <section>
@@ -31,13 +32,15 @@
       <a class="card" href="stories/"><span class="tag canvas">Canvas</span><b>Can blend modes write a story?</b><p>A ternary-weight model that writes wobbly children's stories. Every weight is a red, green or black pixel.</p><span class="facts">1M weights · 20 to 30 tokens a second</span></a>
       <a class="card" href="css/"><span class="tag css">CSS</span><b>Can a stylesheet run a language model?</b><p>A Shakespeare babbler whose whole forward pass is CSS colour maths: <code>color-mix()</code> sums and relative-colour multiplies.</p><span class="facts">21K weights · about 31 ms a character</span></a>
       <a class="card" href="no-js/"><span class="tag css">CSS, no script</span><b>Can a page with no script write by itself?</b><p>The same Shakespeare babbler with the JavaScript taken out. The clock, the memory, the dice and the text are all CSS.</p><span class="facts">21K weights · a little under one character a second · Chrome and Edge only</span></a>
+      <a class="card" href="cards/"><span class="tag css">CSS</span><b>Can CSS transforms multiply matrices?</b><p>The same Shakespeare babbler as a wall of tilting cards. Every neuron is a long list of <code>matrix3d()</code> functions and the answer is how far its card tips.</p><span class="facts">21K weights · 50 to 90 ms a character</span></a>
+      <a class="card" href="audio/"><span class="tag audio">Audio</span><b>Can you listen to a model think?</b><p>The same Shakespeare babbler as a Web Audio graph. The weights are a sound file, each layer is a convolution reverb and ReLU is a distortion curve.</p><span class="facts">21K weights · 10 to 45 ms a character</span></a>
     </div>
   </section>
 
   <section>
     <h2 class="big">The rules</h2>
     <ul class="says">
-      <li><strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour function, a layout pass, a gradient. Not WebGPU, WebGL or WASM, which is how everyone else does it.</li>
+      <li><strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour function, a transform, a reverb, a gradient. Not WebGPU, WebGL or WASM, which is how everyone else does it.</li>
       <li><strong>JavaScript is allowed for the bookkeeping.</strong> Every page says exactly which steps are script and which aren't.</li>
       <li><strong>It has to be a real model and it has to be right.</strong> Each one is checked against an ordinary implementation of the same weights, and the page lets you rerun that check.</li>
       <li><strong>It doesn't have to be fast.</strong> It won't be. Each page says how slow.</li>
