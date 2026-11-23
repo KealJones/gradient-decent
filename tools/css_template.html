@@ -1,30 +1,136 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>CSS · Gradient Decent</title>
+<meta name="description" content="A tiny language model whose whole forward pass runs in CSS colour maths: activations are colours, weights are relative-colour transforms, sums are color-mix() trees.">
 <link rel="stylesheet" href="../lib/page.css">
 <style>
-#out{white-space:pre-wrap;min-height:220px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--panel);font:18px/1.6 Georgia,"Iowan Old Style",serif;margin:0 0 8px}
+main section{margin:0 0 56px}
+.answer{max-width:72ch;margin:14px 0 0;padding-left:14px;border-left:3px solid var(--cool);font-size:15px}
+.lede{max-width:72ch;color:var(--dim);font-size:14px;margin:0}
+h2.big{font-size:20px;color:var(--fg);margin:0 0 6px}
+.section-lede{max-width:72ch;color:var(--dim);font-size:14px;margin:0 0 16px}
+.bench{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:18px}
+#out{white-space:pre-wrap;min-height:200px;padding:16px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font:18px/1.6 Georgia,"Iowan Old Style",serif;margin:0 0 6px}
 #out b{font-weight:400;color:var(--dim)}
-label{color:var(--dim);font-size:13px;display:flex;gap:8px;align-items:center}
+label.t{color:var(--dim);font-size:13px;display:flex;gap:8px;align-items:center}
 .sw{display:grid;gap:3px}.sw i{display:block;aspect-ratio:1;border-radius:3px}
-#hv{grid-template-columns:repeat(32,minmax(0,1fr))}#ov{grid-template-columns:repeat(12,minmax(0,1fr));max-width:420px}
-details{margin-top:28px;color:var(--dim);font-size:14px;max-width:72ch}code{font-size:13px}
+#hv{grid-template-columns:repeat(32,minmax(0,1fr))}#ov{grid-template-columns:repeat(13,minmax(0,1fr));max-width:460px}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
+.metric{border-top:1px solid var(--line);padding-top:8px}.metric span{display:block;color:var(--dim);font-size:12px}
+.metric strong{font-size:24px;font-variant-numeric:tabular-nums}
+.pipe{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:s}
+.pipe li{display:grid;grid-template-columns:2.2em 4.2em minmax(0,1fr);gap:10px;align-items:start;border:1px solid var(--line);border-radius:8px;padding:10px 12px;background:var(--panel);counter-increment:s}
+.pipe li::before{content:counter(s);color:var(--dim)}
+.tag{font-size:12px;font-weight:600;border-radius:4px;padding:1px 0;text-align:center}
+.tag.js{background:#ffd23f;color:#111}.tag.css{background:var(--cool);color:#111}
+.pipe b{font-weight:600}.pipe p{margin:2px 0 0;color:var(--dim);font-size:14px}
+pre{overflow-x:auto;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:14px;font-size:12.5px;line-height:1.5;color:#cfcabf;white-space:pre-wrap;word-break:break-all}
+.split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px}
+.split>div{border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--panel)}
+.split h3{margin:0 0 6px;font-size:15px}.split ul{margin:0;padding-left:18px;color:var(--dim);font-size:14px}.split li{margin:3px 0}
+.fig{position:relative;height:320px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.fig svg{position:absolute;inset:0;width:100%;height:100%}
+.key{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:0}
+.table-wrap{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px;margin-top:12px}
+th,td{padding:7px 10px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}th{color:var(--dim);font-weight:600}
+th:first-child,td:first-child{text-align:left}
+ul.says{padding-left:18px;max-width:78ch}ul.says li{margin:0 0 10px}ul.says strong{color:var(--fg)}
+.note{color:var(--dim);font-size:13px;margin:8px 0 0}
+@media(max-width:700px){.split{grid-template-columns:minmax(0,1fr)}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}#hv{grid-template-columns:repeat(16,minmax(0,1fr))}.pipe li{grid-template-columns:3.4em minmax(0,1fr)}.pipe li::before{display:none}}
 /*CSS*/
 </style></head><body><main>
 <p class="crumb"><a href="../">Gradient Decent</a> / css</p>
-<h1><span>CSS</span></h1>
-<p class="sub">A tiny character-level language model whose entire forward pass is CSS colour math. Every activation is an <code>rgb()</code>, every weight block is a relative colour transform, every sum is a <code>color-mix()</code>. Trained on lowercase Shakespeare, 21K weights.</p>
+<h1><span>Can a stylesheet run a language model?</span></h1>
+<p class="lede">A tiny character-level model, trained on lowercase Shakespeare, whose whole forward pass is CSS colour maths. Every activation is an <code>rgb()</code>, every weight block is a relative-colour transform, every sum is a <code>color-mix()</code>.</p>
+<p class="answer">Yes, and it gets the maths right: it matches a plain JavaScript run of the same weights to about 0.005, and picks the same top character every time. It's just very slow. The browser's style engine is hundreds of times slower than a plain JavaScript loop (85 to 770 times in the scaling test below; the race measures your machine), and every weight costs about 21 bytes of stylesheet. The babble is the 21,000-weight model's fault, not the CSS's.</p>
+
+<section style="margin-top:28px">
+<div class="bench">
+<h2 class="big">Run it</h2>
 <form id="f"><input id="seed" type="text" value="first citizen:\n" aria-label="Prompt"><button id="go">Generate</button>
-<label>temperature <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.7"></label></form>
+<label class="t">temperature <input id="temp" type="range" min="0.1" max="1.5" step="0.05" value="0.7"></label></form>
 <div id="m"><div id="out"></div><div id="stat"></div>
-<h2>Hidden layer: 192 neurons as 64 colours</h2><div class="sw" id="hv"></div>
-<h2>Logits: 36 characters as 12 colours</h2><div class="sw" id="ov"></div></div>
-<details><summary>How it works</summary>
-<p>Weights are baked into the stylesheet as literals. Activations live in registered <code>@property</code> custom properties of syntax <code>&lt;color&gt;</code>, which Chrome stores as unclamped floats, so each color is a 3-lane vector register (alpha clamps to 0–1, so it's useless). A 3×3 block of a weight matrix is one <code>color(from var(--x) srgb calc(r*a + g*b + b*c) …)</code>. Blocks are summed with a binary tree of <code>color-mix()</code> (which averages, so weights are pre-scaled by the leaf count). ReLU is <code>max(r,0)</code>. The browser's style engine runs both layers in one style recalc.</p>
-<p>JavaScript does three things: puts the last 8 characters into class names (the embedding lookup is CSS rules), reads 12 computed colors back, and samples one character. That's the clock tick.</p></details>
+<h2>Hidden layer: 192 neurons as 64 colours, live</h2><div class="sw" id="hv"></div>
+<h2>Logits: 37 characters as 13 colours, live</h2><div class="sw" id="ov"></div></div>
+<p class="note">Those squares aren't drawn by script. Each one's <code>background</code> is a CSS expression on the neuron's colour, so they change because the style engine just did the maths.</p>
+</div>
+</section>
+
+<section>
+<h2 class="big">Race it in your browser</h2>
+<p class="section-lede">Runs 40 random 8-character contexts through both engines on this exact model: the stylesheet, and a plain JavaScript loop over the same weights from <code>model.json</code>. Same as <code>window.selfTest()</code>.</p>
+<button id="race" class="ghost" type="button">Race CSS against JavaScript</button>
+<div class="metrics">
+<div class="metric"><span>CSS, per character</span><strong id="r-css">–</strong></div>
+<div class="metric"><span>JavaScript, per character</span><strong id="r-js">–</strong></div>
+<div class="metric"><span>CSS is slower by</span><strong id="r-x">–</strong></div>
+<div class="metric"><span>Same top character / largest logit gap</span><strong id="r-ok">–</strong></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">How one character gets made</h2>
+<p class="section-lede">Seven steps per character. JavaScript does three of them and none of the arithmetic.</p>
+<ol class="pipe">
+<li><span class="tag js">JS</span><div><b>Tokenise.</b><p>Take the last 8 characters, look up each one's number in the 37-character vocabulary, and write them as class names on one div: <code>s0t1 s1t20 … s7t14</code> means "token 1 at position 0" and so on.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Embed.</b><p>Each of the <span data-k="embRules"></span> class rules sets the colours for one token at one position. The 8 positions × 9 numbers come out as 24 colours, <code>--x0</code> to <code>--x23</code>.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Layer 1: 72 inputs to 192 neurons.</b><p>The weight matrix is cut into 3×3 blocks. Each block is a relative colour: take input colour <i>i</i>, and make a new colour whose red is <code>r*a + g*b + b*c</code>, and so on. That's a 3×3 matrix times a 3-vector, which is all a colour matrix is.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>Sum.</b><p>The blocks for one output colour are added with a binary tree of <code>color-mix()</code>. Mixing averages, so the weights are pre-multiplied by the number of leaves (32 here) and the average comes out as the sum. The bias is one more leaf.</p></div></li>
+<li><span class="tag css">CSS</span><div><b>ReLU, then layer 2.</b><p><code>calc(max(r, 0))</code> on each channel. The result lands in a registered <code>@property --h0 { syntax: '&lt;color&gt;' }</code>, which the next layer reads with <code>var()</code>, the same way, to make 13 logit colours.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Read back.</b><p>One <code>getComputedStyle</code> and 13 <code>getPropertyValue</code> calls. Reading forces Chrome to resolve every expression in one style recalc. That's the whole forward pass.</p></div></li>
+<li><span class="tag js">JS</span><div><b>Sample.</b><p>Softmax with temperature and pick one character. Then go back to step 1 with it on the end.</p></div></li>
+</ol>
+
+<h3 style="margin:22px 0 8px;font-size:15px">What the compiled stylesheet looks like</h3>
+<pre><!--EXCERPT--></pre>
+<p class="note">Real lines from this page's stylesheet. Layer 1 alone has <span data-k="leaves"></span> blocks like that one, joined by <span data-k="mixes"></span> <code>color-mix()</code> calls, in <span data-k="cssKB"></span> KB of CSS for <span data-k="weights"></span> weights.</p>
+
+<div class="split" style="margin-top:22px">
+<div><h3><span class="tag js" style="padding:1px 6px">JS</span> about 20 lines</h3><ul>
+<li>Characters to class names (the embedding table itself is CSS)</li>
+<li>Read 13 computed colours back as numbers</li>
+<li>Softmax, temperature and sampling</li>
+<li>The loop, one character every 16 ms</li></ul></div>
+<div><h3><span class="tag css" style="padding:1px 6px">CSS</span> all of the maths</h3><ul>
+<li>Embedding lookup (class selectors)</li>
+<li>Every multiply and add in both layers (<code>calc()</code> in relative colours, <code>color-mix()</code>)</li>
+<li>Bias and ReLU</li>
+<li>Passing activations between layers (registered <code>@property</code> colours)</li>
+<li>The neuron swatches on this page</li></ul></div>
+</div>
+</section>
+
+<section>
+<h2 class="big">How it scales</h2>
+<p class="section-lede">The same two-layer shape with random weights, widening the hidden layer. Time per character, median of 15, headless Chrome 153 on CPU. JavaScript averaged over 1.5 seconds of runs. Log scale.</p>
+<div class="fig" id="fig"><svg id="chart" role="img" aria-label="Time per character for CSS and JavaScript as the model grows"></svg></div>
+<p class="note"><span class="key" style="background:var(--cool)"></span>CSS &nbsp; <span class="key" style="background:#ffd23f"></span>plain JavaScript loop</p>
+<div class="table-wrap"><table><thead><tr><th>weights</th><th>stylesheet</th><th>CSS / char</th><th>JS / char</th><th>CSS slower by</th></tr></thead><tbody id="tb"></tbody></table></div>
+</section>
+
+<section>
+<h2 class="big">What it says</h2>
+<ul class="says">
+<li><strong>Chrome keeps colour channels as unclamped floats.</strong> <code>color(srgb -4.8 7.12 52.5)</code> survives a round trip, so a colour is a three-number register. Only alpha is clamped to 0 to 1, which makes rgba really rgb: three lanes, not four.</li>
+<li><strong>CSS costs about 1.6 µs per weight per character, flat.</strong> From 21K to 670K weights it stays linear. Nothing broke: a 14 MB stylesheet loaded in under 2 seconds. A one-million-weight model would be about 1.6 seconds per token.</li>
+<li><strong>A JavaScript loop is 85 to 770 times faster in this test.</strong> The live race above can land higher, since a warm loop over a 21K model barely touches memory. The gap closes as the model grows because the JS loop starts missing the CPU cache, not because CSS gets better.</li>
+<li><strong>Every weight is about 21 bytes of text.</strong> A float, a multiply sign and a share of the surrounding <code>calc()</code>. Ternary weights would shrink each term to <code>+ r</code>, <code>- g</code> or nothing.</li>
+<li><strong>Precision is fine.</strong> Values come back with about 6 significant digits, and the logits match the JavaScript run to about 0.005.</li>
+</ul>
+<h3 style="margin:20px 0 8px;font-size:15px">Gotchas found on the way</h3>
+<ul class="says">
+<li><code>tanh()</code> isn't a CSS maths function. Using it makes the whole declaration invalid, and the colour silently falls back to black. <code>exp()</code>, <code>pow()</code>, <code>sqrt()</code>, <code>max()</code> and <code>clamp()</code> work.</li>
+<li><code>color-mix()</code> premultiplies by alpha, so alpha has to stay at 1 or it scales the numbers.</li>
+<li>The vocabulary has 37 characters, which isn't a whole number of colours. The first version only had room for 36 logits, so it could never write <code>&amp;</code>. Now it pads to 39 with logits that can't win.</li>
+<li>Only tried in Chrome. Safari has relative colour syntax, but nobody has checked whether it keeps out-of-range channels.</li>
+</ul>
+</section>
 </main>
 <script>
+{
 const VOCAB=/*VOCAB*/, META=/*META*/, m=document.getElementById('m'), out=document.getElementById('out');
+const BENCH=[{w:20928,kb:495,css:26.8,js:0.035},{w:83712,kb:1837,css:106.9,js:0.234},{w:334848,kb:7207,css:490.8,js:2.639},{w:669696,kb:14382,css:1153.8,js:13.559}];
+for(const el of document.querySelectorAll('[data-k]'))el.textContent=META[el.dataset.k].toLocaleString();
 for(const[id,n]of[['hv',META.nh],['ov',META.no]])document.getElementById(id).innerHTML='<i></i>'.repeat(n);
 const cs=getComputedStyle(m);
 const chan=s=>{const v=s.match(/-?[\d.]+(e-?\d+)?/g).map(Number);return s.startsWith('rgb(')?v.slice(0,3).map(x=>x/255):v.slice(0,3)};
@@ -39,12 +145,40 @@ async function generate(){const id=++run,seed=document.getElementById('seed').va
   let ms=0;for(let n=1;n<=400&&id===run;n++){const t0=performance.now();
     const l=logits(toks.slice(-META.ctx));ms+=performance.now()-t0;
     const t=sample(l,+document.getElementById('temp').value);toks.push(t);gen.data+=VOCAB[t];
-    document.getElementById('stat').textContent=`${n} chars · ${(ms/n).toFixed(1)} ms/char of CSS`;
+    document.getElementById('stat').textContent=`${n} chars · ${(ms/n).toFixed(1)} ms per char of CSS`;
     await new Promise(r=>setTimeout(r,16))}}
-window.selfTest=async(n=40)=>{run++;const M=await (await fetch('model.json')).json();
-  const ref=c=>{const e=c.flatMap(t=>M.emb[t]),h=M.b1.map((b,j)=>Math.max(0,e.reduce((a,x,i)=>a+x*M.W1[i][j],b)));return M.b2.map((b,j)=>h.reduce((a,x,i)=>a+x*M.W2[i][j],b))};
-  let err=0,agree=0;for(let k=0;k<n;k++){const c=Array.from({length:META.ctx},()=>Math.floor(Math.random()*VOCAB.length)),a=logits(c),r=ref(c);
-    err=Math.max(err,...a.map((v,i)=>Math.abs(v-r[i])));if(a.indexOf(Math.max(...a))===r.indexOf(Math.max(...r)))agree++}
-  const res={maxLogitError:+err.toFixed(5),argmaxAgree:`${agree} of ${n}`};console.log(res);return res};
-document.getElementById('f').onsubmit=e=>{e.preventDefault();generate()};window.logits=logits;window.VOCAB=VOCAB;generate();
+let MODEL=null;
+async function jsRef(){if(!MODEL){const M=await (await fetch('model.json')).json(),H=M.H,V=M.vocab.length,IN=M.ctx*M.E;
+  const W1=Float32Array.from(M.W1.flat()),W2=Float32Array.from(M.W2.flat());
+  MODEL=c=>{const e=new Float32Array(IN);c.forEach((t,s)=>e.set(M.emb[t],s*M.E));const h=Float32Array.from(M.b1);
+    for(let i=0;i<IN;i++){const x=e[i];for(let j=0;j<H;j++)h[j]+=x*W1[i*H+j]}for(let j=0;j<H;j++)h[j]=Math.max(0,h[j]);
+    const o=Float32Array.from(M.b2);for(let i=0;i<H;i++){const x=h[i];for(let j=0;j<V;j++)o[j]+=x*W2[i*V+j]}return Array.from(o)}}return MODEL}
+async function race(n=40){run++;const ref=await jsRef(),ctxs=Array.from({length:n},()=>Array.from({length:META.ctx},()=>Math.floor(Math.random()*VOCAB.length)));
+  let t=performance.now();const a=ctxs.map(logits),cssMs=(performance.now()-t)/n;
+  t=performance.now();let k=0;while(performance.now()-t<500){ref(ctxs[k%n]);k++}const jsMs=(performance.now()-t)/k;
+  let err=0,agree=0;ctxs.forEach((c,i)=>{const r=ref(c);err=Math.max(err,...a[i].map((v,j)=>Math.abs(v-r[j])));
+    if(a[i].indexOf(Math.max(...a[i]))===r.indexOf(Math.max(...r)))agree++});
+  return{cssMs,jsMs,slower:cssMs/jsMs,maxLogitError:+err.toFixed(5),argmaxAgree:`${agree} of ${n}`}}
+window.selfTest=async n=>{const r=await race(n);console.log(r);return r};
+document.getElementById('race').onclick=async e=>{e.target.disabled=true;e.target.textContent='Racing…';
+  await new Promise(r=>setTimeout(r,30));const r=await race(40);
+  document.getElementById('r-css').textContent=r.cssMs.toFixed(1)+' ms';document.getElementById('r-js').textContent=(r.jsMs*1000).toFixed(0)+' µs';
+  document.getElementById('r-x').textContent=Math.round(r.slower)+'×';document.getElementById('r-ok').textContent=`${r.argmaxAgree.replace(' of ','/')} · ${r.maxLogitError.toFixed(3)}`;
+  e.target.disabled=false;e.target.textContent='Race again'};
+const fmt=ms=>ms>=1?ms.toFixed(ms<10?1:0)+' ms':(ms*1000).toFixed(0)+' µs';
+document.getElementById('tb').innerHTML=BENCH.map(b=>`<tr><td>${b.w.toLocaleString()}</td><td>${(b.kb/1000).toFixed(1)} MB</td><td>${fmt(b.css)}</td><td>${fmt(b.js)}</td><td>${Math.round(b.css/b.js)}×</td></tr>`).join('');
+const svg=document.getElementById('chart');
+const draw=()=>{const W=svg.clientWidth,H=svg.clientHeight,L=W<520?44:60,R=16,T=16,B=40,lo=Math.log10(0.02),hi=Math.log10(2000),
+  xs=Math.log10(15000),xe=Math.log10(1e6),x=w=>L+(Math.log10(w)-xs)/(xe-xs)*(W-L-R),y=v=>T+(hi-Math.log10(v))/(hi-lo)*(H-T-B);
+  let g='';for(const v of[0.1,1,10,100,1000])g+=`<line x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}" stroke="#2a2a30"/><text x="${L-8}" y="${y(v)+4}" fill="#8b877d" font-size="11" text-anchor="end">${v>=1?v+' ms':v*1000+' µs'}</text>`;
+  for(const w of[2e4,1e5,1e6].concat(W<520?[]:[5e4,5e5]))g+=`<text x="${x(w)}" y="${H-B+18}" fill="#8b877d" font-size="11" text-anchor="middle">${w>=1e6?'1M':w/1000+'K'}</text>`;
+  g+=`<text x="${(L+W-R)/2}" y="${H-6}" fill="#8b877d" font-size="11" text-anchor="middle">weights</text>`;
+  for(const[k,c]of[['css','#35e08a'],['js','#ffd23f']]){g+=`<polyline fill="none" stroke="${c}" stroke-width="2.5" points="${BENCH.map(b=>x(b.w)+','+y(b[k])).join(' ')}"/>`;
+    g+=BENCH.map(b=>`<circle cx="${x(b.w)}" cy="${y(b[k])}" r="4" fill="${c}"/>`).join('')}
+  const b=BENCH[3];g+=`<text x="${x(b.w)-8}" y="${y(b.css)-10}" fill="#ece8df" font-size="12" text-anchor="end">1.15 s</text><text x="${x(b.w)-8}" y="${y(b.js)-10}" fill="#ece8df" font-size="12" text-anchor="end">14 ms</text>`;
+  svg.innerHTML=g};
+const ro=new ResizeObserver(draw);ro.observe(svg);
+document.getElementById('f').onsubmit=e=>{e.preventDefault();generate()};
+window.logits=logits;window.VOCAB=VOCAB;generate();
+}
 </script></body></html>

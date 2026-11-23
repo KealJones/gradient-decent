@@ -34,7 +34,8 @@ register. (Alpha clamps to 0 to 1, so it's no use as a lane.)
 
 The script only puts the last 8 characters into class names, reads 12 computed colours back and samples. In
 headless Chrome 153 it matches a plain JavaScript run of the same weights to 0.002 (top character 40 of 40) at
-about 31 ms per character. The stylesheet is 480 KB for 21K weights, which is the catch: CSS is a terrible weight
+about 31 ms per character, which is 85 to 770 times slower than a plain JavaScript loop over the same weights (the
+page has a live race and a scaling chart). The stylesheet is 480 KB for 21K weights, which is the catch: CSS is a terrible weight
 format. `window.selfTest()` runs the comparison.
 
 Rebuild it with numpy only (about two minutes on a laptop CPU):

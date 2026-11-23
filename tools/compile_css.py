@@ -51,9 +51,16 @@ net = '#m{' + ''.join(layer('x', CTX * E, m['W1'], m['b1'], 'h', H, True)
 swatch = ''.join(f'#hv i:nth-child({i+1}){{background:color(from var(--h{i}) srgb calc(r/4) calc(g/4) calc(b/4))}}' for i in range(nh))
 swatch += ''.join(f'#ov i:nth-child({i+1}){{background:color(from var(--o{i}) srgb calc(r/12 + .5) calc(g/12 + .5) calc(b/12 + .5))}}' for i in range(no))
 css = '\n'.join(props + emb + [net, swatch])
+import html, re
+leaf = re.search(r'color\(from var\(--x0\) srgb [^)]*\)[^)]*\)[^)]*\)\)', net).group(0)
+excerpt = (f'/* token 12 at position 0 sets three input colours */\n{emb[12].replace(";", ";\n  ").replace("{", " {\n  ").rstrip()}\n\n'
+           f'/* one 3x3 block of layer 1: input colour 0 -> output colour 0 */\n{leaf}')
+stats = {'embRules': len(emb), 'props': len(props), 'leaves': net.count('color(from var('), 'mixes': net.count('color-mix('),
+         'cssKB': round(len(css) / 1e3), 'weights': V * E + CTX * E * H + H + H * V + V}
 tpl = open(sys.argv[2]).read()
 out = (tpl.replace('/*CSS*/', css)
           .replace('/*VOCAB*/', json.dumps(''.join(m['vocab'])))
-          .replace('/*META*/', json.dumps({'ctx': CTX, 'no': no, 'nh': nh})))
+          .replace('/*META*/', json.dumps({'ctx': CTX, 'no': no, 'nh': nh, **stats}))
+          .replace('<!--EXCERPT-->', html.escape(excerpt)))
 open(sys.argv[3], 'w').write(out)
 print(f'{len(out)/1e3:.0f} KB, {len(css)/1e3:.0f} KB css')
