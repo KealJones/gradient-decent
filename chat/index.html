@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chat · Gradient Decent</title>
+<link rel="stylesheet" href="../lib/page.css">
+<style>
+  #log { min-height:180px; max-height:46vh; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--panel); display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
+  .msg { max-width:80%; padding:8px 12px; border-radius:12px; font:17px/1.45 Georgia, "Iowan Old Style", serif; white-space:pre-wrap; overflow-wrap:anywhere }
+  .msg.a { align-self:flex-end; background:#26262d }
+  .msg.b { align-self:flex-start; background:#1b2a22; border:1px solid #244a36 }
+  .msg.b:empty::after { content:"…"; color:var(--dim) }
+  .hint { color:var(--dim); font-size:13px; align-self:center; margin:auto 0 }
+  .cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:24px; align-items:start }
+  .cols #layers { grid-template-columns:repeat(6, minmax(0,1fr)) }
+  @media (max-width:900px){ .cols { grid-template-columns:minmax(0,1fr) } }
+</style>
+</head>
+<body>
+<main>
+  <p class="crumb"><a href="../">Gradient Decent</a> / chat</p>
+  <h1><span>Chat</span></h1>
+  <p class="sub">A 1.8-million-weight chat model with the vocabulary and world knowledge of a three-year-old, running on canvas colour blending. It keeps the whole conversation in mind for about 250 tokens. Ask it about cats, cake or its favourite colour. Don't ask it for facts.</p>
+  <div class="cols">
+    <section>
+      <div id="log" aria-live="polite"><div class="hint" id="hint">Loading the weight pictures</div></div>
+      <form id="f">
+        <input type="text" id="prompt" placeholder="Say something simple" aria-label="Message" autocomplete="off" maxlength="200">
+        <button id="go" disabled>Send</button>
+        <button id="reset" type="button" class="ghost" disabled>New chat</button>
+      </form>
+      <div id="stat"></div>
+    </section>
+    <section>
+      <h2 style="margin-top:0">The activation function (SiLU), stored as a gradient.</h2>
+      <canvas id="lut" width="1024" height="1"></canvas>
+      <h2>Every layer's weights multiplied by its current input, live.</h2>
+      <div id="layers"></div>
+    </section>
+  </div>
+</main>
+<script type="module">
+import { Model, sample, selfTest } from '../lib/llama.js';
+const $ = id => document.getElementById(id);
+const tile = (key, label) => { const t = document.createElement('div'); t.className = 'tile'; const c = document.createElement('canvas'); c.width = c.height = 64; const l = document.createElement('div'); l.textContent = label; t.append(c, l); $('layers').append(t); return c.getContext('2d'); };
+const BOS = 1, END = 2, A = 3, B = 4, NL = 5;
+let M, vocab, rank, st, banned = [], busy = false, history = [];
+
+// Byte-pair encoding over the whole string, the way the model's tokenizer does it.
+function bpe(seg) {
+  let s = [...seg];
+  for (;;) {
+    let best = Infinity, at = -1;
+    for (let i = 0; i < s.length - 1; i++) { const r = rank.get(s[i] + ' ' + s[i + 1]); if (r !== undefined && r < best) { best = r; at = i; } }
+    if (at < 0) break;
+    const a = s[at], b = s[at + 1], out = [];
+    for (let i = 0; i < s.length; i++) { if (i < s.length - 1 && s[i] === a && s[i + 1] === b) { out.push(a + b); i++; } else out.push(s[i]); }
+    s = out;
+  }
+  return s.map(p => vocab.get(p) ?? 0);
+}
+function encode(text, bos = true) {
+  const ids = bos ? [BOS] : [];
+  for (const part of text.split(/(<A>|<B>)/)) {
+    if (part === '<A>') ids.push(A); else if (part === '<B>') ids.push(B);
+    else if (part) for (const p of ('▁' + part.replace(/ /g, '▁')).split(/(\u2581<unk>|\u2581<start>|\u2581<end>)/)) {
+      if (p === '\u2581<end>') ids.push(END); else if (p === '\u2581<start>') ids.push(BOS); else if (p === '\u2581<unk>') ids.push(0); else if (p) ids.push(...bpe(p));
+    }
+  }
+  return ids;
+}
+const piece = id => id < 5 ? '' : M.bundle.tok.vocab[id].replace(/▁/g, ' ');
+const clean = t => t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+function bubble(cls, text) { $('hint')?.remove(); const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text; $('log').append(d); $('log').scrollTop = $('log').scrollHeight; return d; }
+function feed(ids, wantLast) { let lg = null; ids.forEach((id, i) => { lg = M.step(st, id, wantLast && i === ids.length - 1); }); return lg; }
+function fresh(keep) {
+  // Start the context again from the last few turns that fit.
+  st = M.newState(); feed([BOS], false);
+  let used = 1, from = history.length; while (from > 0 && used + history[from - 1].length < keep) used += history[--from].length;
+  history = history.slice(from); history.forEach(t => feed(t, false));
+}
+async function send(text) {
+  busy = true; $('go').disabled = true; $('reset').disabled = true;
+  bubble('a', text);
+  const turn = encode('<A>' + text + ' <end>\n<B>', false);
+  if (st.pos + turn.length + 60 > M.ctx) fresh(M.ctx - turn.length - 90);
+  const out = bubble('b', ''), t0 = performance.now(); await new Promise(r => setTimeout(r, 0));
+  let lg = feed(turn, true); const reply = []; let s = '';
+  for (let n = 0; n < 60 && st.pos < M.ctx - 2; n++) {
+    for (const i of banned) lg[i] = -Infinity;   // glued-together leftovers in the vocabulary the model never learned
+    const tok = sample(lg, { temp: 1, topK: 40, topP: 0.8 }); if (tok === END || tok === A || tok === B || tok === BOS) break;
+    reply.push(tok); s += piece(tok); out.textContent = s.trim(); $('log').scrollTop = $('log').scrollHeight;
+    $('stat').textContent = `${((turn.length + n + 1) / ((performance.now() - t0) / 1000)).toFixed(1)} tokens/s, ${M.count} canvas multiplies per token, ${st.pos} of ${M.ctx} tokens of memory used`;
+    await new Promise(r => setTimeout(r, 0));
+    lg = M.step(st, tok);
+  }
+  if (!s.trim()) out.textContent = '(said nothing)';
+  feed([END, NL], false); history.push(turn, [...reply, END, NL]);
+  busy = false; $('go').disabled = false; $('reset').disabled = false; $('prompt').focus();
+}
+$('f').addEventListener('submit', e => { e.preventDefault(); const t = clean($('prompt').value); if (!busy && M && t) { $('prompt').value = ''; send(t); } });
+$('reset').addEventListener('click', () => { if (busy) return; history = []; fresh(0); $('log').textContent = ''; const h = document.createElement('div'); h.className = 'hint'; h.id = 'hint'; h.textContent = 'New chat. Say hi.'; $('log').append(h); $('stat').textContent = ''; });
+window.selfTest = () => { const t = M.bundle.test; return { vsFloat: selfTest(M, t.ids, t.greedy, t.firstLogits), vs8bit: selfTest(M, t.ids, t.greedy8, t.firstLogits8), encodeOK: t.encode.map(c => JSON.stringify(encode(c.text)) === JSON.stringify(c.ids)) }; };
+
+Model.load('model.json', { tile, gradientCanvas: $('lut') })
+  .then(m => { M = m; vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i])); rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i])); fresh(0);
+    banned = M.bundle.tok.vocab.flatMap((p, i) => i > 5 && /[<\n]/.test(p) ? [i] : []);
+    $('go').disabled = false; $('reset').disabled = false; $('hint').textContent = 'Say hi.'; $('stat').textContent = `Ready. ${M.bundle.name}, loaded as ${M.count} pictures.`; })
+  .catch(e => { $('hint').textContent = 'Could not start: ' + e.message + '. This needs a recent Chrome or Edge (float16 canvas).'; });
+</script>
+</body>
+</html>

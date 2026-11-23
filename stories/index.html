@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stories · Gradient Decent</title>
+<link rel="stylesheet" href="../lib/page.css">
+<style>
+  #out { min-height:120px; white-space:pre-wrap; border:1px solid var(--line); border-radius:8px; padding:16px; font:18px/1.6 Georgia, "Iowan Old Style", serif; background:var(--panel) }
+  #out .p { color:var(--dim) }
+</style>
+</head>
+<body>
+<main>
+  <p class="crumb"><a href="../">Gradient Decent</a> / stories</p>
+  <h1><span>Stories</span></h1>
+  <p class="sub">A one-million-weight language model where every matrix multiply is done by blending colours on a 2D canvas. The weights are pictures, the multiply is the multiply blend mode, the sums are images being squashed, and the activation function is a colour gradient. No WebGPU, no WebGL, no WASM.</p>
+  <form id="f">
+    <input type="text" id="prompt" value="Once upon a time" aria-label="Prompt" autocomplete="off">
+    <button id="go" disabled>Loading</button>
+    <button id="stop" type="button" class="ghost" disabled>Stop</button>
+  </form>
+  <div id="out" aria-live="polite"></div>
+  <div id="stat"></div>
+  <h2>The activation function (SiLU), stored as a gradient. Red is positive, green is negative.</h2>
+  <canvas id="lut" width="1024" height="1"></canvas>
+  <h2>Every layer's weights multiplied by its current input. Red and green are the two signs.</h2>
+  <div id="layers"></div>
+</main>
+<script type="module">
+import { Model, sample, selfTest } from '../lib/llama.js';
+const $ = id => document.getElementById(id);
+const tile = (key, label) => { const t = document.createElement('div'); t.className = 'tile'; const c = document.createElement('canvas'); c.width = c.height = 64; const l = document.createElement('div'); l.textContent = label; t.append(c, l); $('layers').append(t); return c.getContext('2d'); };
+let M, running = false;
+
+// SentencePiece unigram: pick the split with the best total score.
+function encode(text) {
+  const { pieces, scores } = M.bundle, s = '▁' + text.trim().replace(/ +/g, '▁'), n = s.length, best = new Float64Array(n + 1).fill(-Infinity), back = new Array(n + 1);
+  best[0] = 0; const map = new Map(pieces.map((p, i) => [p, i]));
+  for (let i = 0; i < n; i++) { if (best[i] === -Infinity) continue;
+    for (let j = i + 1; j <= Math.min(n, i + 16); j++) { const id = map.get(s.slice(i, j)); if (id !== undefined && id > 3) { const sc = best[i] + scores[id]; if (sc > best[j]) { best[j] = sc; back[j] = [i, id]; } } }
+    if (best[i] - 20 > best[i + 1]) { best[i + 1] = best[i] - 20; back[i + 1] = [i, 3]; } }
+  const ids = []; for (let j = n; j > 0; j = back[j][0]) ids.push(back[j][1]);
+  return [1, ...ids.reverse()];
+}
+const decode = id => id < 4 ? (id === 3 ? '\n' : '') : M.bundle.pieces[id].replace(/▁/g, ' ');
+
+async function generate(prompt, max = 300) {
+  running = true; $('go').disabled = true; $('stop').disabled = false;
+  const out = $('out'); out.textContent = ''; const ps = document.createElement('span'); ps.className = 'p'; ps.textContent = prompt; const gs = document.createElement('span'); out.append(ps, gs);
+  const st = M.newState(), ids = encode(prompt), t0 = performance.now(); let lg;
+  ids.forEach((id, i) => { lg = M.step(st, id, i === ids.length - 1); });
+  for (let n = 0; n < max && running && st.pos < 500; n++) {
+    const tok = sample(lg, { temp: 0.8, topK: 40 }); if (tok === 2) break;
+    gs.textContent += decode(tok);
+    $('stat').textContent = `${n + 1} tokens, ${((n + 1 + ids.length) / ((performance.now() - t0) / 1000)).toFixed(1)} tokens/s, ${M.count} canvas multiplies per token`;
+    await new Promise(r => setTimeout(r, 0));
+    lg = M.step(st, tok);
+  }
+  running = false; $('go').disabled = false; $('stop').disabled = true;
+}
+$('f').addEventListener('submit', e => { e.preventDefault(); if (!running && M) generate($('prompt').value); });
+$('stop').addEventListener('click', () => { running = false; });
+window.selfTest = () => { const t = M.bundle.test, r = selfTest(M, t.ids, t.greedy, t.firstLogits); return { ...r, encodeOK: JSON.stringify(encode(t.prompt)) === JSON.stringify(t.ids), text: r.got.map(decode).join('') }; };
+
+Model.load('model.json', { tile, gradientCanvas: $('lut') })
+  .then(m => { M = m; $('go').disabled = false; $('go').textContent = 'Write'; $('stat').textContent = `Ready. About a million weights, loaded as ${M.count} pictures.`; })
+  .catch(e => { $('stat').textContent = 'Could not start: ' + e.message + '. This needs a recent Chrome or Edge (float16 canvas).'; });
+</script>
+</body>
+</html>
