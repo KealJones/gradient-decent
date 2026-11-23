@@ -154,7 +154,7 @@ Headless Chrome 153, CPU only, no GPU:
 |---|---|---|
 | greedy tokens matching the numpy reference | 14 of 14 | 60 of 60 |
 | largest logit error | 0.07 on values up to 21 | 0.022 on values up to 14.5 |
-| speed with the live tiles on | about 15 tokens/s | about 20 tokens/s |
+| speed with the live tiles and clocks on | about 14 tokens/s | about 20 tokens/s |
 | canvas multiplies per token | 22 | 36 |
 | download | 5.9 MB | 743 KB |
 
@@ -164,8 +164,18 @@ The chat reference itself matches Hugging Face transformers to 0.00001.
 
 A plain JavaScript loop does the same multiply about 25 times faster. The canvas is here because you can watch it.
 
-Still plain JavaScript: the norms, rotary positions, attention over the cache, the tokenizers and sampling. Not
-tried yet: Safari, phones, a machine with a real GPU.
+The rotary positions are done by CSS transforms ([`lib/clocks.js`](lib/clocks.js)): each pair of numbers is a
+zero-size element placed with `translate` inside an element with `rotate`, and `getBoundingClientRect()` reads the
+answer. The elements are the dots on the clock faces next to the live tiles. Against `Math.cos`/`Math.sin` the
+worst error is 0.0006% to 0.003% of the longest pair on a clock (it grows with how far the clocks sit from the corner
+of the window), and it costs about 5 ms a token on chat and 7 ms on stories. `M.ropeEngine = 'js'` switches it off;
+`window.rotaryTest()` and `window.rotaryCost()` measure it.
+
+Still plain JavaScript: the norms, attention over the cache, the tokenizers and, on the stories
+page, sampling. The chat page picks its token with layout: the candidates are boxes in a flex row whose widths are
+their probabilities, and a hit test says which box a randomly placed needle is on ([`lib/pick.js`](lib/pick.js);
+`window.samplingTest()` checks it against the JavaScript sampler). Not tried yet: Safari, phones, a machine with a
+real GPU.
 
 ## Rebuilding the weights
 
