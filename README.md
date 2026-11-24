@@ -1,17 +1,26 @@
 # Gradient Decent
 
-Small neural networks, mostly language models, run by the parts of a browser that were built for drawing and
-styling, not for maths: canvas blend modes, CSS colours and transforms, SVG filters, the audio engine, and whatever else turns out to be able to multiply. No WebGPU, WebGL or WASM in the
-forward pass.
+Parts of the browser that were built for drawing and styling, used as accidental calculators to run small neural
+networks: the page layout engine, canvas blend modes, CSS colour maths and 3D transforms, the Web Audio graph and an
+SVG filter. No WebGPU, WebGL or WASM in the forward pass.
 
-The name is the joke. Gradient descent is how a model gets trained. No page here trains anything and nothing descends: they only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.
+None of it is useful and all of it is slow. It's a goofy experiment: the point was to see whether each one could be
+done at all, and then to check that it gets the right answer. Every page runs a real model, explains the trick step by
+step, and races it against a plain JavaScript copy of the same model. The source of every page is commented, so you
+can follow along in view-source.
 
-Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
+The name is the joke. Gradient descent is how models get trained. Nothing on these pages trains anything (the few
+models made for this were trained ahead of time, in a script, the normal way): they only run models, using actual
+colours and gradients. So it's gradient, and it's decent.
+
+Live at https://kealjones.com/gradient-decent/.
 
 There are nine so far:
 
 | | model | what it does |
 |---|---|---|
+| [`lorem/`](lorem/) | a 31K-weight attention model trained here on Cicero's *De Finibus* | You always pour lorem ipsum into a page layout; this page layout writes its own. Attention, rotary positions and a feed-forward layer as box sizes, typeset into a fake magazine. |
+| [`layout/`](layout/) | the same model as `css/` | The same babble with no arithmetic written anywhere: every number is the size of a box, and page layout does the sums. |
 | [`chat/`](chat/) | [raincandy-u/TinyChat-1776K](https://huggingface.co/raincandy-u/TinyChat-1776K) (Apache 2.0), 1.8M weights, 3 layers | Multi-turn chat at the level of a three-year-old. No world knowledge. |
 | [`stories/`](stories/) | [hidude562/tiny-tiny-stories](https://huggingface.co/hidude562/tiny-tiny-stories) (MIT), 1M ternary weights, 5 layers | Wobbly children's stories from a prompt. |
 | [`css/`](css/) | trained here on lowercase Tiny Shakespeare, 21K weights, one hidden layer | Shakespeare-shaped babble, one character at a time, with the whole forward pass in a stylesheet. |
@@ -19,8 +28,6 @@ There are nine so far:
 | [`cards/`](cards/) | the same model as `css/` | The same babble, with both matrix multiplies done by CSS transforms on a wall of tilting cards. |
 | [`audio/`](audio/) | the same model as `css/`, shipped as a 5-second float WAV | The same babble, with the whole forward pass in one Web Audio render per character. You can play the weights and each character's render. |
 | [`filter/`](filter/) | trained here on MNIST shrunk to 14×14, 10K weights, three layers | Reads a digit you draw, with the whole forward pass in one SVG `<filter>`. |
-| [`layout/`](layout/) | the same model as `css/` | The same babble with no arithmetic written anywhere: every number is the size of a box, and page layout does the sums. |
-| [`lorem/`](lorem/) | a 31K-weight attention model trained on Cicero's *De Finibus* | Lorem ipsum written by page layout: attention, rotary positions and a feed-forward layer as box sizes, typeset into a fake magazine. |
 
 ## The canvas ones
 
@@ -49,11 +56,11 @@ register. (Alpha clamps to 0 to 1, so it's no use as a lane.)
 - **ReLU is `max(r, 0)`.** Both layers resolve in one style recalc, chained through the registered properties.
 - **The embedding lookup is class names.** `.s3t12` sets the colours for "token 12 at position 3".
 
-The script only puts the last 8 characters into class names, reads 12 computed colours back and samples. In
-headless Chrome 153 it matches a plain JavaScript run of the same weights to 0.002 (top character 40 of 40) at
-about 31 ms per character, which is 85 to 770 times slower than a plain JavaScript loop over the same weights (the
-page has a live race and a scaling chart). The stylesheet is 480 KB for 21K weights, which is the catch: CSS is a terrible weight
-format. `window.selfTest()` runs the comparison.
+The script only puts the last 8 characters into class names, reads 13 computed colours back and samples. In
+headless Chrome 153 it matches a plain JavaScript run of the same weights to about 0.005 (top character 40 of 40) at
+about 40 ms per character, roughly 1,000 times slower than a plain JavaScript loop over the same weights (85 to 770
+times in the page's scaling test with bigger random models). The stylesheet is 683 KB for 21K weights, which is the
+catch: CSS is a terrible weight format. `window.selfTest()` runs the comparison.
 
 Rebuild it with numpy only (about two minutes on a laptop CPU):
 
@@ -101,7 +108,7 @@ out to one `matrix3d()`.
 So: transforms do every multiply, add and bias in both layers; class selectors do the embedding lookup; CSS
 `max()` does the ReLU; JavaScript sets class names, copies the 192 numbers across, reads 19 matrices back and
 samples. In headless Chrome 153 it matches a plain JavaScript run to about 0.0007 on logits from −270 to 13 (top
-character 40 of 40; the limit is that Chrome prints a computed matrix with six significant digits) at 50 to 90 ms
+character 40 of 40; the limit is that Chrome prints a computed matrix with six significant digits) at about 40 ms
 per character, around a thousand times slower than the JavaScript loop. The stylesheet is 812 KB: 10,790
 `matrix3d()` functions for 21K weights. `window.selfTest()` runs the comparison.
 
@@ -127,7 +134,7 @@ with no script touching the numbers between the layers.
 
 The script builds the graph, copies 8 embedding rows into the input buffer, reads 37 samples and samples a
 character. In headless Chrome 153 it matches a plain JavaScript run to about 0.0002 on logits as large as 400 (top
-character 40 of 40) at 10 to 45 ms per character, a few hundred times slower than the plain loop.
+character 40 of 40) at about 13 ms per character, a few hundred times slower than the plain loop.
 `window.selfTest()` runs the comparison and the WAV check. Playback is there but nobody has heard it yet: the test
 browser has no speakers.
 
@@ -163,7 +170,7 @@ loses almost nothing. On the 10,000 MNIST test digits, in headless Chrome 153 on
 | largest difference in a score (scores are 0 to 1) | 0.019 |
 
 A JavaScript version that rounds each layer to 8 bits, as the filter has to, is never more than one 8-bit step
-(0.0039) from the filter and gives the same answer on all 10,000. The filter takes about 6 ms a digit, about 40 times
+(0.0039) from the filter and gives the same answer on all 10,000. The filter takes about 7 ms a digit, about 40 times
 slower than the plain JavaScript loop. `window.selfTest()` on the page runs the comparison on the first 1,000 test digits.
 Filters ran in software here; a GPU path was not tested and could round differently.
 
@@ -204,15 +211,16 @@ widths of the dice are a constant table in the page, `100 - 10 * (2 - ln(-ln((k 
 JavaScript copy of the model exists only as the checker in the race.
 
 In headless Chrome 153 the dot landed on the same character as plain JavaScript 20 times out of 20 with scores
-within 0.006, at about 670 ms a character for 44,564 boxes: more than 10,000 times slower than the JavaScript loop.
+within 0.005, at about 0.7 seconds a character for 44,564 boxes: some 20,000 times slower than the JavaScript loop.
 The page builds its boxes from `css/model.json` at load, so there is nothing to compile.
 
 ## The lorem one
 
-[`lorem/`](lorem/) is the layout machine grown into a transformer. Lorem ipsum is a mangled passage of Cicero's
+[`lorem/`](lorem/) is the layout machine grown into a transformer, and the joke is the point: you always pour
+lorem ipsum into a page layout, so this page layout writes its own. Lorem ipsum is a mangled passage of Cicero's
 *De Finibus Bonorum et Malorum* (45 BC), so the model is trained on the five books of *De Finibus* (about 47,000
 words, from the Latin Library): one attention layer with two heads, rotary positions, a 96-neuron feed-forward layer
-and 320 word pieces, 31K weights in all. It trained in 70 seconds on a CPU. On text it never saw it scores 3.62 nats
+and 320 word pieces, 31K weights in all. It trained in 70 seconds on two CPU cores (ahead of time, not on the page). On text it never saw it scores 3.62 nats
 a piece, against 5.39 for a model that only knows how common each piece is.
 
 On top of the moves from `layout/`:
@@ -231,8 +239,9 @@ On top of the moves from `layout/`:
   nothing resized.
 
 In headless Chrome 153 the boxes picked the same piece as a plain JavaScript copy 24 times out of 24, with every
-score within 0.012, at about half a second a piece for 66,368 boxes: roughly 3,000 times slower than JavaScript.
-`tools/train_lorem.py` trains it and `tools/export_lorem.py` writes `lorem/model.json`.
+score within 0.012, at a bit over half a second a piece for 66,368 boxes: roughly 4,000 times slower than
+JavaScript. It also runs in Safari on iOS. `tools/train_lorem.py` trains it and `tools/export_lorem.py` writes
+`lorem/model.json`.
 
 ## Run it
 
@@ -240,9 +249,12 @@ score within 0.012, at about half a second a piece for 66,368 boxes: roughly 3,0
 python3 -m http.server
 ```
 
-Then open http://localhost:8000. The canvas pages need a float16 2D canvas, so a recent Chrome or Edge. The CSS page needs relative colour syntax and registered properties; it's only been tried in Chrome.
+Then open http://localhost:8000. Everything is tested in Chrome. The canvas pages need a float16 2D canvas, so a
+recent Chrome or Edge; the no-script page needs CSS `if()`, so Chrome or Edge 137+; the lorem page also runs in
+Safari on iOS. The rest haven't been tried outside Chrome.
 
-`window.selfTest()` in the console on either page compares the canvas against a plain numpy run of the same model.
+`window.selfTest()` in the console on any page runs that page's check against a plain JavaScript (or numpy) copy of
+the same model.
 
 ## How it did
 
@@ -272,8 +284,14 @@ of the window), and it costs about 5 ms a token on chat and 7 ms on stories. `M.
 Still plain JavaScript: the norms, attention over the cache, the tokenizers and, on the stories
 page, sampling. The chat page picks its token with layout: the candidates are boxes in a flex row whose widths are
 their probabilities, and a hit test says which box a randomly placed needle is on ([`lib/pick.js`](lib/pick.js);
-`window.samplingTest()` checks it against the JavaScript sampler). Not tried yet: Safari, phones, a machine with a
-real GPU.
+`window.samplingTest()` checks it against the JavaScript sampler). Not tried yet on the canvas pages: Safari,
+phones, a machine with a real GPU.
+
+## Formatting
+
+The hand-written pages, `lib/` and the templates are formatted with Prettier (print width 120, single quotes); the
+Python tools with `ruff format`. The four big generated pages (`css/`, `no-js/`, `cards/`, `filter/`) are built from
+the templates in `tools/` and aren't formatted by hand, so edit the template and rebuild.
 
 ## Rebuilding the weights
 

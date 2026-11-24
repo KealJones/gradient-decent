@@ -1,432 +1,1565 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lorem ipsum · Gradient Decent</title>
-<meta name="description" content="A small attention model trained on Cicero, the text lorem ipsum was cut from, run entirely by page layout: rotary positions, attention, a feed-forward layer and sampling, all as the sizes of 63,000 boxes.">
-<link rel="stylesheet" href="../lib/page.css?v=6">
-<style>
-  .tag.layout { background:#ff9ecb }
-  label.t { color:var(--dim); font-size:13px; display:flex; gap:8px; align-items:center }
-  .key { display:inline-block; width:10px; height:10px; border-radius:2px; margin:0 5px 0 12px; vertical-align:-1px }
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lorem ipsum · Gradient Decent</title>
+    <meta
+      name="description"
+      content="A small attention model trained on Cicero, the text lorem ipsum was cut from, run entirely by page layout: rotary positions, attention, a feed-forward layer and sampling, all as the sizes of 63,000 boxes."
+    />
+    <link rel="stylesheet" href="../lib/page.css?v=6" />
+    <style>
+      /*
+        Styles for the lorem page. Two kinds of rule live here:
+        - the magazine and the panels, which are only for looking at, and
+        - the machine's rules (.stk, .col, .r, .t, .k, .arow, .die, .lane...), which ARE the model's arithmetic.
+          Changing a size in those changes the answers.
+        The generated stylesheet (<style id="gen">) is filled in by the script: the embedding table and the
+        rotation table as CSS variables, one class per word piece and one per position.
+      */
+      .tag.layout {
+        background: #ff9ecb;
+      }
+      label.t {
+        color: var(--dim);
+        font-size: 13px;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .key {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin: 0 5px 0 12px;
+        vertical-align: -1px;
+      }
 
-  /* ---- The magazine. Nothing here computes anything; it's where the filler ends up. ---- */
-  .mag { background:#f3eee3; color:#1d1b17; border-radius:4px; padding:28px 30px 30px; margin:0 0 8px; font:16px/1.55 Georgia, "Iowan Old Style", "Times New Roman", serif }
-  .mag .mast { display:flex; justify-content:space-between; align-items:baseline; border-bottom:3px double #1d1b17; padding-bottom:6px; font:700 13px/1 ui-monospace, Menlo, monospace; letter-spacing:.18em; text-transform:uppercase }
-  .mag .mast b { font:italic 700 34px/1 Georgia, serif; letter-spacing:-.01em; text-transform:none }
-  .mag h3 { font:400 40px/1.05 Georgia, serif; margin:18px 0 4px; letter-spacing:-.015em }
-  .mag .by { font:italic 14px/1.4 Georgia, serif; color:#6b6457; margin:0 0 16px }
-  .mag .body { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,2.2fr); gap:26px; min-height:260px }
-  .mag .cols { columns:2 180px; column-gap:26px; column-rule:1px solid #d8d0c0; text-align:justify; hyphens:auto; overflow-wrap:anywhere }
-  .mag .body p { margin:0 }
-  .mag .cols p::first-letter { float:left; font-size:62px; line-height:.86; padding:4px 6px 0 0; color:#b0362b }
-  .mag .seed { color:#8c8474 }
-  .mag .caret { display:inline-block; width:2px; height:1em; background:#b0362b; vertical-align:-2px; animation:blink 1s steps(1) infinite }
-  @keyframes blink { 50% { opacity:0 } }
-  .mag .pull { align-self:start; margin:6px 0 12px; padding:10px 0; border-top:2px solid #1d1b17; border-bottom:2px solid #1d1b17; font:italic 21px/1.3 Georgia, serif; text-align:left }
+      /* ---- The magazine. Nothing here computes anything; it's where the filler ends up. ---- */
+      .mag {
+        background: #f3eee3;
+        color: #1d1b17;
+        border-radius: 4px;
+        padding: 28px 30px 30px;
+        margin: 0 0 8px;
+        font:
+          16px/1.55 Georgia,
+          'Iowan Old Style',
+          'Times New Roman',
+          serif;
+      }
+      .mag .mast {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 14px;
+        justify-content: space-between;
+        align-items: baseline;
+        border-bottom: 3px double #1d1b17;
+        padding-bottom: 6px;
+        font:
+          700 13px/1 ui-monospace,
+          Menlo,
+          monospace;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+      .mag .mast b {
+        font:
+          italic 700 34px/1 Georgia,
+          serif;
+        letter-spacing: -0.01em;
+        text-transform: none;
+      }
+      .mag h3 {
+        font:
+          400 40px/1.05 Georgia,
+          serif;
+        margin: 18px 0 4px;
+        letter-spacing: -0.015em;
+      }
+      .mag .by {
+        font:
+          italic 14px/1.4 Georgia,
+          serif;
+        color: #6b6457;
+        margin: 0 0 16px;
+      }
+      .mag .body {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2.2fr);
+        gap: 26px;
+        min-height: 260px;
+      }
+      .mag .cols {
+        columns: 2 180px;
+        column-gap: 26px;
+        column-rule: 1px solid #d8d0c0;
+        text-align: justify;
+        hyphens: auto;
+        overflow-wrap: anywhere;
+      }
+      .mag .body p {
+        margin: 0;
+      }
+      .mag .cols p::first-letter {
+        float: left;
+        font-size: 62px;
+        line-height: 0.86;
+        padding: 4px 6px 0 0;
+        color: #b0362b;
+      }
+      .mag .seed {
+        color: #8c8474;
+      }
+      .mag .caret {
+        display: inline-block;
+        width: 2px;
+        height: 1em;
+        background: #b0362b;
+        vertical-align: -2px;
+        animation: blink 1s steps(1) infinite;
+      }
+      @keyframes blink {
+        50% {
+          opacity: 0;
+        }
+      }
+      .mag .pull {
+        align-self: start;
+        margin: 6px 0 12px;
+        padding: 10px 0;
+        border-top: 2px solid #1d1b17;
+        border-bottom: 2px solid #1d1b17;
+        font:
+          italic 21px/1.3 Georgia,
+          serif;
+        text-align: left;
+      }
 
-  /* ---- The machine. Every box in the stages is real layout; .view panels shrink it with a transform so it fits. ---- */
-  #mach { display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-top:16px } .pan { min-width:0 }
-  .ch { display:contents }
-  .pan h4 { margin:0 0 6px; font-size:13px; color:var(--ink) } .pan h4 span { color:var(--dim); font-weight:400 }
-  .view { contain:strict; position:relative; overflow:hidden; background:#000; border-radius:4px; height:var(--vh,120px) }
-  .stg { position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(calc(var(--kx) * var(--fit, 1)), var(--ky)); display:flex; flex-wrap:wrap; align-items:flex-start; align-content:flex-start; gap:300px 96px; width:var(--sw); font-size:1024px }
+      /* ---- The machine. Every box in the stages is real layout; .view panels shrink it with a transform so it fits. ---- */
+      #mach {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 14px;
+        margin-top: 16px;
+      }
+      .pan {
+        min-width: 0;
+      }
+      /* Each stage is nested inside the one before (a ResizeObserver only reports deeper elements in the same frame),
+         but display: contents lets every panel still sit in #mach's grid as a sibling. */
+      .ch {
+        display: contents;
+      }
+      .pan h4 {
+        margin: 0 0 6px;
+        font-size: 13px;
+        color: var(--ink);
+      }
+      .pan h4 span {
+        color: var(--dim);
+        font-weight: 400;
+      }
+      /* A panel window onto one stage. contain: strict stops a stage's layout from spilling into the rest of the page. */
+      .view {
+        contain: strict;
+        position: relative;
+        overflow: hidden;
+        background: #000;
+        border-radius: 4px;
+        height: var(--vh, 120px);
+      }
+      /* One whole stage at full size (font-size 1024px, so 1em is one unit of the model), shrunk with a transform.
+         --kx and --ky are display-only scales; --fit shrinks further on phones. flex-wrap only arranges the sums
+         into a mosaic; each sum is independent of where it sits. */
+      .stg {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: 0 0;
+        transform: scale(calc(var(--kx) * var(--fit, 1)), var(--ky));
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        align-content: flex-start;
+        gap: 300px 96px;
+        width: var(--sw);
+        font-size: 1024px;
+      }
 
-  /* A signed sum: two columns of boxes side by side in one grid row. Each column ends in a stretchy box, and the
+      /* A signed sum: two columns of boxes side by side in one grid row. Each column ends in a stretchy box, and the
      row is as tall as the taller column, so each stretchy box gets the difference or nothing. */
-  .stk { display:grid; grid-template-columns:max-content max-content; justify-content:start; align-items:stretch }
-  .col { display:flex; flex-direction:column; align-items:flex-start }
-  .col > i { flex:none; display:block }
-  .col > .r { flex:1 1 0; min-height:0; width:400px }
-  .col:first-child > i { background:#ff5a36 } .col:first-child > i:nth-child(even) { background:#ffb347 }
-  .col:nth-child(2) > i { background:#3d7dff } .col:nth-child(2) > i:nth-child(even) { background:#7fb0ff }
-  .r.p { background:#34d27b } .r.n { background:#c86bff }
-  /* A product of two live numbers: the box is one number wide, and inside it a box is the other number in cqw. */
-  .t { flex:none; display:block }
-  .t > .k { width:9.765625%; container-type:inline-size } .t > .k3 { width:13.0208333%; container-type:inline-size }
-  .t > div > i { display:block; width:100%; background:inherit }
-  .col:first-child > .t { background:#ff5a36 } .col:nth-child(2) > .t { background:#3d7dff }
+      .stk {
+        display: grid;
+        grid-template-columns: max-content max-content;
+        justify-content: start;
+        align-items: stretch;
+      }
+      .col {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .col > i {
+        flex: none;
+        display: block;
+      }
+      /* The stretchy box at the bottom of each column: whatever height the other column has beyond this one.
+         That is max(0, other − this), the difference with negatives clamped to zero. */
+      .col > .r {
+        flex: 1 1 0;
+        min-height: 0;
+        width: 400px;
+      }
+      .col:first-child > i {
+        background: #ff5a36;
+      }
+      .col:first-child > i:nth-child(even) {
+        background: #ffb347;
+      }
+      .col:nth-child(2) > i {
+        background: #3d7dff;
+      }
+      .col:nth-child(2) > i:nth-child(even) {
+        background: #7fb0ff;
+      }
+      .r.p {
+        background: #34d27b;
+      }
+      .r.n {
+        background: #c86bff;
+      }
+      /* A product of two live numbers: the box is one number wide, and inside it a box is the other number in cqw. */
+      .t {
+        flex: none;
+        display: block;
+      }
+      /* .k is the size container, 9.765625% (100/1024) of the outer box's width. The outer box is a × 1024px wide,
+         so 1cqw inside is a × 1024 / 1024 px, and the inner box, b × 1024 cqw tall, is a × b × 1024px: the product.
+         .k3 is the same for the attention row, where one unit of share is 768px wide: 100/768 = 13.02%. */
+      .t > .k {
+        width: 9.765625%;
+        container-type: inline-size;
+      }
+      .t > .k3 {
+        width: 13.0208333%;
+        container-type: inline-size;
+      }
+      .t > div > i {
+        display: block;
+        width: 100%;
+        background: inherit;
+      }
+      .col:first-child > .t {
+        background: #ff5a36;
+      }
+      .col:nth-child(2) > .t {
+        background: #3d7dff;
+      }
 
-  /* Ring of 16 slots with their position dials */
-  #tiles { display:grid; grid-template-columns:repeat(16, minmax(0,1fr)); gap:4px }
-  .tile { background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:5px 2px 4px; text-align:center; font:12px/1.2 ui-monospace, Menlo, monospace; min-width:0 }
-  .tile.now { border-color:#ff9ecb; box-shadow:0 0 0 1px #ff9ecb }
-  .tile .w { display:block; white-space:nowrap; overflow:hidden; text-overflow:clip; height:15px; color:var(--ink) }
-  .tile .pn { display:block; color:var(--dim); font-size:10px }
-  .dial { position:relative; width:30px; height:30px; margin:4px auto 2px; border:1px solid var(--line); border-radius:50% }
-  .dial > i { position:absolute; left:14px; bottom:15px; width:1px; height:13px; transform-origin:50% 100%; background:#ff9ecb; transform:rotate(var(--ang,0deg)) }
-  .dial > i:nth-child(2) { background:#ffb347 } .dial > i:nth-child(3) { background:#ffd23f } .dial > i:nth-child(4) { background:#34d27b } .dial > i:nth-child(5) { background:#5ad1e6 } .dial > i:nth-child(6) { background:#7fb0ff } .dial > i:nth-child(7) { background:#c86bff } .dial > i:nth-child(8) { background:#f3eee3 }
+      /* Ring of 16 slots with their position dials */
+      #tiles {
+        display: grid;
+        grid-template-columns: repeat(16, minmax(0, 1fr));
+        gap: 4px;
+      }
+      .tile {
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 5px 2px 4px;
+        text-align: center;
+        font:
+          12px/1.2 ui-monospace,
+          Menlo,
+          monospace;
+        min-width: 0;
+      }
+      .tile.now {
+        border-color: #ff9ecb;
+        box-shadow: 0 0 0 1px #ff9ecb;
+      }
+      .tile .w {
+        display: block;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: clip;
+        height: 15px;
+        color: var(--ink);
+      }
+      .tile .pn {
+        display: block;
+        color: var(--dim);
+        font-size: 10px;
+      }
+      .dial {
+        position: relative;
+        width: 30px;
+        height: 30px;
+        margin: 4px auto 2px;
+        border: 1px solid var(--line);
+        border-radius: 50%;
+      }
+      /* Eight hands per dial, one per rotation speed, each turned to that speed's angle for the slot's position. Only
+         for looking at: the same angles reach the model as cos and sin box shapes. */
+      .dial > i {
+        position: absolute;
+        left: 14px;
+        bottom: 15px;
+        width: 1px;
+        height: 13px;
+        transform-origin: 50% 100%;
+        background: #ff9ecb;
+        transform: rotate(var(--ang, 0deg));
+      }
+      .dial > i:nth-child(2) {
+        background: #ffb347;
+      }
+      .dial > i:nth-child(3) {
+        background: #ffd23f;
+      }
+      .dial > i:nth-child(4) {
+        background: #34d27b;
+      }
+      .dial > i:nth-child(5) {
+        background: #5ad1e6;
+      }
+      .dial > i:nth-child(6) {
+        background: #7fb0ff;
+      }
+      .dial > i:nth-child(7) {
+        background: #c86bff;
+      }
+      .dial > i:nth-child(8) {
+        background: #f3eee3;
+      }
 
-  /* Attention: the actual flex rows. 768px is one unit of weight. */
-  .attn { width:768px; transform-origin:0 0; transform:scale(var(--ks,1)) }
-  .arow { display:flex; width:768px; height:34px; margin:0 0 6px }
-  .arow > b { flex-basis:0; min-width:0; overflow:hidden; display:block; font:400 11px/34px ui-monospace, Menlo, monospace; color:#14110c; text-align:center; white-space:nowrap; box-shadow:inset -1px 0 #0006 }
-  .arow > b:nth-child(odd) { background:#ff9ecb } .arow > b:nth-child(even) { background:#ffc2de }
-  .arow > b.sink { background:#2a2a33; color:#8b877d }
-  .attnwrap { height:80px; overflow:hidden }
+      /* Attention: the actual flex rows. 768px is one unit of weight. */
+      .attn {
+        width: 768px;
+        transform-origin: 0 0;
+        transform: scale(var(--ks, 1));
+      }
+      .arow {
+        display: flex;
+        width: 768px;
+        height: 34px;
+        margin: 0 0 6px;
+      }
+      .arow > b {
+        flex-basis: 0;
+        min-width: 0;
+        overflow: hidden;
+        display: block;
+        font:
+          400 11px/34px ui-monospace,
+          Menlo,
+          monospace;
+        color: #14110c;
+        text-align: center;
+        white-space: nowrap;
+        box-shadow: inset -1px 0 #0006;
+      }
+      .arow > b:nth-child(odd) {
+        background: #ff9ecb;
+      }
+      .arow > b:nth-child(even) {
+        background: #ffc2de;
+      }
+      .arow > b.sink {
+        background: #2a2a33;
+        color: #8b877d;
+      }
+      .attnwrap {
+        height: 80px;
+        overflow: hidden;
+      }
 
-  /* The dice: one per vocabulary piece. A staircase of floats draws the curve; the yellow block is dropped in. */
-  .dice { display:flex; flex-wrap:wrap; gap:2px }
-  .dslot { contain:strict; position:relative; overflow:hidden; width:14px; height:40px; background:#000 }
-  .dn { position:absolute; left:0; top:0; transform-origin:0 0; transform:scale(.00137, .0054); display:grid; grid-template-columns:max-content; font-size:1024px }
-  .tb { height:1em; aspect-ratio:var(--T) / 0.1; background:#ff9ecb; display:block }
-  .die { display:flow-root; min-width:0 }
-  .die > b { float:left; clear:left; height:100px; display:block; background:#2e2e36 }
-  .sp { display:block; font-size:25px }
-  .pr { display:flow-root; height:100px; background:#ffd23f; outline:300px solid #ffd23f }
+      /* The dice: one per vocabulary piece. A staircase of floats draws the curve; the yellow block is dropped in. */
+      .dice {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px;
+      }
+      .dslot {
+        contain: strict;
+        position: relative;
+        overflow: hidden;
+        width: 14px;
+        height: 40px;
+        background: #000;
+      }
+      .dn {
+        position: absolute;
+        left: 0;
+        top: 0;
+        transform-origin: 0 0;
+        transform: scale(0.00137, 0.0054);
+        display: grid;
+        grid-template-columns: max-content;
+        font-size: 1024px;
+      }
+      /* The temperature box: 1em tall with aspect-ratio T / 0.1, so it is 10 × T em wide. The staircase steps are
+         percentages of this width, so the roll comes out already multiplied by the temperature. */
+      .tb {
+        height: 1em;
+        aspect-ratio: var(--T) / 0.1;
+        background: #ff9ecb;
+        display: block;
+      }
+      .die {
+        display: flow-root;
+        min-width: 0;
+      }
+      /* One step of the curve: 64 floats stacked with clear: left, each 100px tall and a fixed percent wide. */
+      .die > b {
+        float: left;
+        clear: left;
+        height: 100px;
+        display: block;
+        background: #2e2e36;
+      }
+      .sp {
+        display: block;
+        font-size: 25px;
+      }
+      /* The roll: a block in a new formatting context squeezes in beside the floats at its height. Its width is
+         whatever room the step leaves, which is the dice curve's value there. */
+      .pr {
+        display: flow-root;
+        height: 100px;
+        background: #ffd23f;
+        outline: 300px solid #ffd23f;
+      }
 
-  /* The pick: every piece's score as a bar in one grid column. */
-  #podv { --vh:330px }
-  /* The scores arrive in cqw of a 3px-wide container: the same numbers, 3/100 of a pixel each, so the bars stay small enough to draw. */
-  #pq { position:absolute; left:0; top:0; width:3px; container-type:inline-size; transform-origin:0 0; transform:scale(calc(1.25 * var(--fit, 1)), .25) }
-  #pod { display:grid; grid-template-columns:max-content; justify-content:start }
-  .lane { display:flex; height:4px; align-items:center }
-  .lane > b { flex:none; height:3px; background:#34d27b; display:block } .lane > b.roll { background:#ffd23f }
-  .lane > s { flex:1 1 0; min-width:0; height:3px; container-type:inline-size; position:relative; display:block }
-  .lane > s > u { position:absolute; left:10px; top:-14px; width:0; height:0; display:block; background:#ffd23f; border-radius:50% }
-  @container (max-width: 0.001px) { .lane > s > u { width:60px; height:32px } }
-  .won { display:flex; gap:10px; align-items:center; margin-top:8px; font:13px ui-monospace, Menlo, monospace; color:var(--dim) }
-  .won b { font:400 26px/1 Georgia, serif; color:#ffd23f; background:#000; padding:6px 12px; border-radius:6px; min-width:2em; text-align:center }
-  @media (max-width:700px) { .mag .body { grid-template-columns:minmax(0,1fr) } #mach { --fit:.31; --ks:.42 } .attnwrap { height:34px } .dslot { width:8px } .stg { transform-origin:0 0 } #tiles { grid-template-columns:repeat(8, minmax(0,1fr)) } .mag h3 { font-size:30px } .mag { padding:20px 18px } }
-</style>
-<style id="gen"></style>
-</head>
-<body>
-<main>
-<p class="crumb"><a href="../">Gradient Decent</a> / lorem</p>
-<h1><span>Can page layout write lorem ipsum?</span></h1>
-<p class="lede">Lorem ipsum is a chopped-up passage of Cicero, filler for page layouts. This page trains a small attention model on that same book of Cicero and runs it with page layout. Rotary positions, attention, the feed-forward layer and the dice are all box sizes, and what comes out is typeset into the page below as filler.</p>
-<p class="answer" id="answer">Yes. About 66,000 boxes get laid out for every piece of a word, and in headless Chrome the boxes picked the same piece as a plain JavaScript copy of the model 24 times out of 24, with every score within 0.012. A piece takes about half a second, some 3,000 times slower than the JavaScript. What it writes is mostly real Latin words in a plausible order, which is also what lorem ipsum is.</p>
+      /* The pick: every piece's score as a bar in one grid column. */
+      #podv {
+        --vh: 330px;
+      }
+      /* The scores arrive in cqw of a 3px-wide container: the same numbers, 3/100 of a pixel each, so the bars stay small enough to draw. */
+      #pq {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 3px;
+        container-type: inline-size;
+        transform-origin: 0 0;
+        transform: scale(calc(1.25 * var(--fit, 1)), 0.25);
+      }
+      #pod {
+        display: grid;
+        grid-template-columns: max-content;
+        justify-content: start;
+      }
+      .lane {
+        display: flex;
+        height: 4px;
+        align-items: center;
+      }
+      .lane > b {
+        flex: none;
+        height: 3px;
+        background: #34d27b;
+        display: block;
+      }
+      .lane > b.roll {
+        background: #ffd23f;
+      }
+      /* The room beside each bar. All lanes share one max-content grid column, so the longest bar's room is 0. */
+      .lane > s {
+        flex: 1 1 0;
+        min-width: 0;
+        height: 3px;
+        container-type: inline-size;
+        position: relative;
+        display: block;
+      }
+      .lane > s > u {
+        position: absolute;
+        left: 10px;
+        top: -14px;
+        width: 0;
+        height: 0;
+        display: block;
+        background: #ffd23f;
+        border-radius: 50%;
+      }
+      @container (max-width: 0.001px) {
+        .lane > s > u {
+          width: 60px;
+          height: 32px;
+        }
+      }
+      .won {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        margin-top: 8px;
+        font:
+          13px ui-monospace,
+          Menlo,
+          monospace;
+        color: var(--dim);
+      }
+      .won b {
+        font:
+          400 26px/1 Georgia,
+          serif;
+        color: #ffd23f;
+        background: #000;
+        padding: 6px 12px;
+        border-radius: 6px;
+        min-width: 2em;
+        text-align: center;
+      }
+      @media (max-width: 700px) {
+        .mag .body {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        #mach {
+          --fit: 0.31;
+          --ks: 0.42;
+        }
+        .attnwrap {
+          height: 34px;
+        }
+        .dslot {
+          width: 8px;
+        }
+        .stg {
+          transform-origin: 0 0;
+        }
+        #tiles {
+          grid-template-columns: repeat(8, minmax(0, 1fr));
+        }
+        .mag h3 {
+          font-size: 30px;
+        }
+        .mag {
+          padding: 20px 18px;
+        }
+      }
+    </style>
+    <style id="gen"></style>
+  </head>
+  <body>
+    <main>
+      <p class="crumb"><a href="../">Gradient Decent</a> / lorem</p>
+      <h1><span>Can page layout write lorem ipsum?</span></h1>
+      <p class="lede">
+        You always pour lorem ipsum into a page layout. So what if the page layout wrote the lorem ipsum? This page
+        turns the browser's layout engine into a calculator and uses it to run a small language model that writes lorem
+        ipsum. Every multiply, sum and choice is the size of a box. The model was trained ahead of time, in an ordinary
+        script, on Cicero's <i>De Finibus</i>, the book lorem ipsum was chopped out of, and what it writes is typeset
+        into the magazine below as filler.
+      </p>
+      <p class="answer" id="answer">
+        Yes, slowly. Each piece of a word takes about 66,000 boxes and a bit over half a second, roughly 4,000 times
+        slower than the same model in plain JavaScript. It's a goofy experiment, not a useful one, but the answers are
+        right: in headless Chrome the boxes picked the same piece as a plain JavaScript copy of the model 24 times out
+        of 24, with every score within 0.012. What it writes is mostly real Latin words in a plausible order, which is
+        also a fair description of lorem ipsum.
+      </p>
 
-<section>
-<div class="bench">
-<h2 class="big">Run it</h2>
-<form id="f"><input id="seed" type="text" value="lorem ipsum dolor sit amet," aria-label="Prompt"><button id="go" disabled>Loading</button><button id="stop" type="button" class="ghost" disabled>Stop</button>
-<label class="t">temperature <input id="temp" type="range" min="0" max="1.5" step="0.05" value="0.7"></label></form>
+      <section>
+        <div class="bench">
+          <h2 class="big">Run it</h2>
+          <form id="f">
+            <input id="seed" type="text" value="lorem ipsum dolor sit amet," aria-label="Prompt" /><button
+              id="go"
+              disabled
+            >
+              Loading</button
+            ><button id="stop" type="button" class="ghost" disabled>Stop</button>
+            <label class="t"
+              >temperature <input id="temp" type="range" min="0" max="1.5" step="0.05" value="0.7"
+            /></label>
+          </form>
 
-<div class="mag" aria-live="off">
-<div class="mast"><b>Lorem</b><span>Vol. XLV a.C.n. · Filler quarterly</span></div>
-<h3>De Finibus Bonorum et Malorum</h3>
-<p class="by">M. Tullius Cicero, as the boxes remember him</p>
-<div class="body"><p class="pull" id="pull">“Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.”</p><div class="cols"><p id="txt"><span class="seed" id="seedtxt"></span><span id="gen1"></span><span class="caret"></span></p></div></div>
-</div>
-<div id="stat"></div>
+          <div class="mag" aria-live="off">
+            <div class="mast"><b>Lorem</b><span>Vol. XLV a.C.n. · Filler quarterly</span></div>
+            <h3>De Finibus Bonorum et Malorum</h3>
+            <p class="by">M. Tullius Cicero, as the boxes remember him</p>
+            <div class="body">
+              <p class="pull" id="pull">“Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet.”</p>
+              <div class="cols">
+                <p id="txt">
+                  <span class="seed" id="seedtxt"></span><span id="gen1"></span><span class="caret"></span>
+                </p>
+              </div>
+            </div>
+          </div>
+          <div id="stat"></div>
 
-<div id="mach">
-<div class="pan"><h4>The context: 16 slots in a ring <span>· each dial is that slot's position, eight hands turning at eight speeds</span></h4><div id="tiles"></div></div>
-<div class="ch">
-<div class="pan"><h4>1 · Queries, keys and values <span>· 96 sums of 32 boxes. Box heights are the word's numbers, box shapes are the weights</span></h4><div class="view" style="--vh:160px"><div class="stg" id="S1" style="--sw:34000px;--kx:.03;--ky:.0096"></div></div></div>
-<div class="pan"><h4>The dice <span>· one per piece of the vocabulary. Floats draw the curve, the yellow block is dropped in at random</span></h4><div class="dice" id="dice"></div></div>
-<div class="ch">
-<div class="pan"><h4>2 · Rotation <span>· each pair of numbers turned by the slot's angle: cos and sin are box shapes</span></h4><div class="view" style="--vh:100px"><div class="stg" id="S2" style="--sw:38500px;--kx:.0265;--ky:.0216"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>3 · Attention scores <span>· query times every key in the ring. Here both factors are live, so one is a width and the other a cqw height inside it</span></h4><div class="view" style="--vh:90px"><div class="stg" id="S3" style="--sw:58500px;--kx:.0174;--ky:.0113"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>4 · Attention <span>· two flex rows. Each slot grows by its score, the grey sink by 1, so each slot's width is its share</span></h4><div class="attnwrap"><div><div class="attn" id="S4"></div></div></div></div>
-<div class="ch">
-<div class="pan"><h4>5 · Mixing the values <span>· each slot's share times its value, summed</span></h4><div class="view" style="--vh:60px"><div class="stg" id="S5" style="--sw:29000px;--kx:.035;--ky:.1"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>6 · Back into the stream <span>· the word's own numbers plus what attention found</span></h4><div class="view" style="--vh:60px"><div class="stg" id="S6" style="--sw:30000px;--kx:.034;--ky:.0139"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>7 · Feed-forward, in <span>· 96 neurons, clamped at zero by the leftover space</span></h4><div class="view" style="--vh:140px"><div class="stg" id="S7" style="--sw:43800px;--kx:.0233;--ky:.0034"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>8 · Feed-forward, out <span>· and added back</span></h4><div class="view" style="--vh:110px"><div class="stg" id="S8" style="--sw:62500px;--kx:.0163;--ky:.0014"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>9 · Scores for all 320 pieces <span>· each with a fixed box that keeps it above zero</span></h4><div class="view" style="--vh:300px"><div class="stg" id="S9" style="--sw:310000px;--kx:.0033;--ky:.00079"></div></div></div>
-<div class="ch">
-<div class="pan"><h4>10 · The pick <span>· each bar is a score (green) plus that piece's roll of the dice (yellow), all in one grid column. Only the longest has no room beside it, and that's where the yellow mark appears</span></h4><div class="view" id="podv"><div id="pq"><div id="pod"></div></div></div><div class="won">picked <b id="won">·</b><span id="wonctx"></span></div></div>
-</div></div></div></div></div></div></div></div></div></div>
-</div>
-<p class="note">Everything in the numbered stages is the machine itself, shrunk with CSS transforms so it fits (transforms don't change layout). At full size it is millions of pixels wide.</p>
-</div>
-</section>
+          <div id="mach">
+            <div class="pan">
+              <h4>
+                The context: 16 slots in a ring
+                <span>· each dial is that slot's position, eight hands turning at eight speeds</span>
+              </h4>
+              <div id="tiles"></div>
+            </div>
+            <div class="ch">
+              <div class="pan">
+                <h4>
+                  1 · Queries, keys and values
+                  <span
+                    >· 96 sums of up to 64 boxes. Box widths are the piece's numbers, box shapes are the weights</span
+                  >
+                </h4>
+                <div class="view" style="--vh: 160px">
+                  <div class="stg" id="S1" style="--sw: 34000px; --kx: 0.03; --ky: 0.0096"></div>
+                </div>
+              </div>
+              <div class="pan">
+                <h4>
+                  The dice
+                  <span
+                    >· one per piece of the vocabulary. Floats draw the curve, the yellow block is dropped in at
+                    random</span
+                  >
+                </h4>
+                <div class="dice" id="dice"></div>
+              </div>
+              <div class="ch">
+                <div class="pan">
+                  <h4>
+                    2 · Rotation
+                    <span>· each pair of numbers turned by the slot's angle: cos and sin are box shapes</span>
+                  </h4>
+                  <div class="view" style="--vh: 100px">
+                    <div class="stg" id="S2" style="--sw: 38500px; --kx: 0.0265; --ky: 0.0216"></div>
+                  </div>
+                </div>
+                <div class="ch">
+                  <div class="pan">
+                    <h4>
+                      3 · Attention scores
+                      <span
+                        >· query times every key in the ring. Here both factors are live, so one is a width and the
+                        other a cqw height inside it</span
+                      >
+                    </h4>
+                    <div class="view" style="--vh: 90px">
+                      <div class="stg" id="S3" style="--sw: 58500px; --kx: 0.0174; --ky: 0.0113"></div>
+                    </div>
+                  </div>
+                  <div class="ch">
+                    <div class="pan">
+                      <h4>
+                        4 · Attention
+                        <span
+                          >· two flex rows. Each slot grows by its score, the grey sink by 1, so each slot's width is
+                          its share</span
+                        >
+                      </h4>
+                      <div class="attnwrap">
+                        <div><div class="attn" id="S4"></div></div>
+                      </div>
+                    </div>
+                    <div class="ch">
+                      <div class="pan">
+                        <h4>5 · Mixing the values <span>· each slot's share times its value, summed</span></h4>
+                        <div class="view" style="--vh: 60px">
+                          <div class="stg" id="S5" style="--sw: 29000px; --kx: 0.035; --ky: 0.1"></div>
+                        </div>
+                      </div>
+                      <div class="ch">
+                        <div class="pan">
+                          <h4>
+                            6 · Back into the stream <span>· the word's own numbers plus what attention found</span>
+                          </h4>
+                          <div class="view" style="--vh: 60px">
+                            <div class="stg" id="S6" style="--sw: 30000px; --kx: 0.034; --ky: 0.0139"></div>
+                          </div>
+                        </div>
+                        <div class="ch">
+                          <div class="pan">
+                            <h4>
+                              7 · Feed-forward, in <span>· 96 neurons, clamped at zero by the leftover space</span>
+                            </h4>
+                            <div class="view" style="--vh: 140px">
+                              <div class="stg" id="S7" style="--sw: 43800px; --kx: 0.0233; --ky: 0.0034"></div>
+                            </div>
+                          </div>
+                          <div class="ch">
+                            <div class="pan">
+                              <h4>8 · Feed-forward, out <span>· and added back</span></h4>
+                              <div class="view" style="--vh: 110px">
+                                <div class="stg" id="S8" style="--sw: 62500px; --kx: 0.0163; --ky: 0.0014"></div>
+                              </div>
+                            </div>
+                            <div class="ch">
+                              <div class="pan">
+                                <h4>
+                                  9 · Scores for all 320 pieces
+                                  <span>· each with a fixed box that keeps it above zero</span>
+                                </h4>
+                                <div class="view" style="--vh: 300px">
+                                  <div class="stg" id="S9" style="--sw: 310000px; --kx: 0.0033; --ky: 0.00079"></div>
+                                </div>
+                              </div>
+                              <div class="ch">
+                                <div class="pan">
+                                  <h4>
+                                    10 · The pick
+                                    <span
+                                      >· each bar is a score (green) plus that piece's roll of the dice (yellow), all in
+                                      one grid column. Only the longest has no room beside it, and that's where the
+                                      yellow mark appears</span
+                                    >
+                                  </h4>
+                                  <div class="view" id="podv">
+                                    <div id="pq"><div id="pod"></div></div>
+                                  </div>
+                                  <div class="won">picked <b id="won">·</b><span id="wonctx"></span></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="note">
+            Everything in the numbered stages is the machine itself, shrunk with CSS transforms so it fits (transforms
+            don't change layout). At full size it is millions of pixels wide.
+          </p>
+        </div>
+      </section>
 
-<section>
-<h2 class="big">Race it in your browser</h2>
-<p class="section-lede">Feeds 24 random pieces through both: the boxes, and a plain JavaScript copy of the same model. That copy is the only place on the page where script multiplies, and it only runs here, as the checker. Same as <code>window.selfTest()</code>.</p>
-<button id="race" class="ghost" type="button" disabled>Race layout against JavaScript</button>
-<div class="metrics">
-<div class="metric"><span>Layout, per piece</span><strong id="r-lay">–</strong></div>
-<div class="metric"><span>JavaScript, per piece</span><strong id="r-js">–</strong></div>
-<div class="metric"><span>Layout is slower by</span><strong id="r-x">–</strong></div>
-<div class="metric"><span>Same top piece / largest score gap</span><strong id="r-ok">–</strong></div>
-</div>
-</section>
+      <section>
+        <h2 class="big">Race it in your browser</h2>
+        <p class="section-lede">
+          Feeds 24 random pieces through both: the boxes, and a plain JavaScript copy of the same model. That copy is
+          the only place on the page where script multiplies, and it only runs here, as the checker. Same as
+          <code>window.selfTest()</code>.
+        </p>
+        <button id="race" class="ghost" type="button" disabled>Race layout against JavaScript</button>
+        <div class="metrics">
+          <div class="metric"><span>Layout, per piece</span><strong id="r-lay">–</strong></div>
+          <div class="metric"><span>JavaScript, per piece</span><strong id="r-js">–</strong></div>
+          <div class="metric"><span>Layout is slower by</span><strong id="r-x">–</strong></div>
+          <div class="metric"><span>Same top piece / largest score gap</span><strong id="r-ok">–</strong></div>
+        </div>
+      </section>
 
-<section>
-<h2 class="big">How one piece gets made</h2>
-<p class="section-lede">The model reads pieces of words, not letters: <code>dolor</code>, <code>em</code>, <code> ips</code>. Each step makes one piece. The script builds the boxes once, then only carries sizes from one stage to the next.</p>
-<ol class="pipe">
-<li><span class="tag css">CSS</span><div><b>Look up the piece.</b><p>A class name on the machine sets 32 lengths, the piece's numbers. Another class sets the position: sixteen cos and sin values, each split into a positive and a negative length.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Queries, keys and values.</b><p>The same move as the <a href="../layout/">layout page</a>, turned on its side: a box is one number wide, and its <code>aspect-ratio: 1 / weight</code> makes it number × weight tall. A column of them is a sum; the taking-away column sits next to it and a stretchy box at the bottom of each gets the difference. Both stretchy boxes are kept, so a sum can come out negative.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Rotate.</b><p>Rotary positions turn each pair of numbers by an angle that depends on where the piece sits. A turn is a sum of products with cos and sin, and cos and sin are constants for each position, so they are box shapes too. The angles repeat every 64 pieces, so a ring of 16 slots never has to be shifted.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Remember.</b><p>The key and value are copied into the next slot of the ring: this page's memory is 1,024 CSS variables.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Score every slot.</b><p>Here both factors are live, so aspect-ratio can't help. The box is the query's number wide and is a size container; the box inside it is the key's number in <code>cqw</code>, a percentage of that width, so its height is the product.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Share out the attention.</b><p>Each slot becomes a flex item that grows by its score (clamped at zero), next to a sink that grows by 1. Flexbox hands out the row in proportion, so each width is score ÷ (1 + all scores). Division, for free.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Mix, feed forward, score.</b><p>Each slot's share times its value, summed; added back to the piece's own numbers; through 96 clamped neurons and back; then a score for each of the 320 pieces, with a fixed box that keeps every score above zero.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Pick.</b><p>Each piece's bar is its score followed by its roll of the dice. 320 bars in one grid column. The longest leaves no room beside it, and a container query gives a mark a size only where the room is zero.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Typeset.</b><p>The observer sees which mark appeared. The piece is queued, and the letters are let out evenly at the pace the machine has been running, so the text flows instead of arriving in lumps.</p></div></li>
-</ol>
+      <section>
+        <h2 class="big">How one piece gets made</h2>
+        <p class="section-lede">
+          The model reads pieces of words, not letters: <code>dolor</code>, <code>em</code>, <code> ips</code>. Each
+          step makes one piece. The script builds the boxes once, then only carries sizes from one stage to the next.
+        </p>
+        <ol class="pipe">
+          <li>
+            <span class="tag css">CSS</span>
+            <div>
+              <b>Look up the piece.</b>
+              <p>
+                A class name on the first stage sets 64 lengths: the piece's 32 numbers, each split into a positive and
+                a negative part. A class on the rotation stage sets the position: eight cos and eight sin values, split
+                the same way.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Queries, keys and values.</b>
+              <p>
+                The same move as the <a href="../layout/">layout page</a>, turned on its side: a box is one number wide,
+                and its <code>aspect-ratio: 1 / weight</code> makes it number × weight tall. A column of them is a sum;
+                the taking-away column sits next to it and a stretchy box at the bottom of each gets the difference.
+                Both stretchy boxes are kept, so a sum can come out negative.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Rotate.</b>
+              <p>
+                Rotary positions turn each pair of numbers by an angle that depends on where the piece sits. A turn is a
+                sum of products with cos and sin, and cos and sin are constants for each position, so they are box
+                shapes too. The angles repeat every 64 pieces, so a ring of 16 slots never has to be shifted.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Remember.</b>
+              <p>
+                The key and value are copied into the next slot of the ring: this page's memory is 2,048 CSS variables.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Score every slot.</b>
+              <p>
+                Here both factors are live, so aspect-ratio can't help. The box is the query's number wide and is a size
+                container; the box inside it is the key's number in <code>cqw</code>, a percentage of that width, so its
+                height is the product.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Share out the attention.</b>
+              <p>
+                Each slot becomes a flex item that grows by its score (clamped at zero), next to a sink that grows by 1.
+                Flexbox hands out the row in proportion, so each width is score ÷ (1 + all scores). Division, for free.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Mix, feed forward, score.</b>
+              <p>
+                Each slot's share times its value, summed; added back to the piece's own numbers; through 96 clamped
+                neurons and back; then a score for each of the 320 pieces, with a fixed box that keeps every score above
+                zero.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Pick.</b>
+              <p>
+                Each piece's bar is its score followed by its roll of the dice. 320 bars in one grid column. The longest
+                leaves no room beside it, and a container query gives a mark a size only where the room is zero.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Typeset.</b>
+              <p>
+                The observer sees which mark appeared. The piece is queued, and the letters are let out evenly at the
+                pace the machine has been running, so the text flows instead of arriving in lumps.
+              </p>
+            </div>
+          </li>
+        </ol>
 
-<div class="split" style="margin-top:22px">
-<div><h3><span class="tag js">JS</span> what the script still does</h3><ul>
-<li>Writes each weight into a box as text; a leading minus sign decides the column</li>
-<li>Splits the prompt into pieces with the model's merge list</li>
-<li>Copies sizes from one stage to the next, and keys and values into the ring</li>
-<li>Asks for 320 random bytes per piece</li>
-<li>Lets the letters out at an even pace, and counts and times for the readout</li>
-<li>The plain JavaScript model in the race, as the checker</li></ul></div>
-<div><h3><span class="tag layout">Layout</span> all of the model's arithmetic</h3><ul>
-<li>Multiplying by a weight, cos or sin (<code>aspect-ratio</code>)</li>
-<li>Multiplying two live numbers (<code>cqw</code> inside a size container)</li>
-<li>Adding (columns of boxes)</li>
-<li>Subtracting and clamping (leftover space)</li>
-<li>Dividing by the total (<code>flex-grow</code>)</li>
-<li>The dice and the temperature (floats and <code>aspect-ratio</code>)</li>
-<li>Picking the largest (a grid column and a container query)</li></ul></div>
-</div>
-</section>
+        <div class="split" style="margin-top: 22px">
+          <div>
+            <h3><span class="tag js">JS</span> what the script still does</h3>
+            <ul>
+              <li>Writes each weight into a box as text; a leading minus sign decides the column</li>
+              <li>Splits the prompt into pieces with the model's merge list</li>
+              <li>Copies sizes from one stage to the next, and keys and values into the ring</li>
+              <li>Counts positions and which ring slot is next</li>
+              <li>Asks for 320 random bytes per piece</li>
+              <li>Lets the letters out at an even pace, and counts and times for the readout</li>
+              <li>The plain JavaScript model in the race, as the checker</li>
+            </ul>
+          </div>
+          <div>
+            <h3><span class="tag layout">Layout</span> all of the model's arithmetic</h3>
+            <ul>
+              <li>Multiplying by a weight, cos or sin (<code>aspect-ratio</code>)</li>
+              <li>Multiplying two live numbers (<code>cqw</code> inside a size container)</li>
+              <li>Adding (columns of boxes)</li>
+              <li>Subtracting and clamping (leftover space)</li>
+              <li>Dividing by the total (<code>flex-grow</code>)</li>
+              <li>The dice and the temperature (floats and <code>aspect-ratio</code>)</li>
+              <li>Picking the largest (a grid column and a container query)</li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
-<section>
-<h2 class="big">What it says</h2>
-<ul class="says">
-<li><strong>A transformer fits in layout.</strong> Attention needed two new moves: <code>cqw</code> to multiply two numbers that are both still being worked out, and <code>flex-grow</code> to divide by a total. <span id="say-acc">Run the race for the numbers on your machine.</span></li>
-<li><strong>It learned Latin, sort of.</strong> Trained on the five books of <i>De Finibus</i> (about 47,000 words) for 70 seconds on a laptop-class CPU. On a stretch it never saw, it is about 6 times less surprised by each piece than a model that only knows how common each piece is. Most of what it writes is real Latin words in plausible order, which is also a fair description of lorem ipsum.</li>
-<li><strong>The model was built for the page.</strong> No layer norms, because dividing by a square root needed another stage. Attention shares are score ÷ (1 + total) with negative scores clamped, not the usual exponential, because flex-grow does that directly. Rotation angles repeat every 64 pieces, so the 16-slot ring never has to shift.</li>
-</ul>
-<h3 class="sub3">Gotchas found on the way</h3>
-<ul class="says">
-<li>If the grow factors in a flex row add up to less than 1, flexbox only hands out that fraction of the room. The sink of 1 keeps the total above 1, so the shares stay exact.</li>
-<li>A size container can't take its size from its contents, so the product box can't be the container. The container is a wrapper, and the product is the height of the box inside.</li>
-<li>Ten stages have to finish inside one frame, and a <code>ResizeObserver</code> only reports elements deeper in the page than the last ones it reported. The stages are nested one inside the next and drawn with <code>display: contents</code>, so they can still sit in a grid.</li>
-<li>The residual connections let a stage start on half-new inputs: the feed-forward output stage hears from the attention stage before the feed-forward input stage has finished. That sent early, wrong waves down the machine. The fix holds a few copies back until the stage before has reported, so each big stage is laid out once per piece. A piece is finished when a whole frame passes with nothing resized.</li>
-<li>Chrome stops drawing a single box past about 16,000 pixels. The scores are 1,024 pixels a unit, so the pick's bars arrive in <code>cqw</code> of a 3-pixel-wide container instead: the same numbers, three hundredths of a pixel each.</li>
-<li>Only tried in Chrome.</li>
-</ul>
-</section>
-</main>
-<script type="module">
-const $ = id => document.getElementById(id);
-const M = await (await fetch('model.json')).json();
-const VOC = M.vocab, V = VOC.length, D = M.D, H = M.H, HD = M.HD, FF = M.FF, W = M.W, P = M.PERIOD, J = M.turns.length;
-const neg = v => String(v).startsWith('-'), mag = v => neg(v) ? String(v).slice(1) : String(v);
-const show = t => t.replaceAll('▁', ' ');
-const html = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
-const CURVE = ['95.7940','93.2267','91.7637','90.6682','89.7637','88.9777','88.2728','87.6266','87.0251','86.4584','85.9195','85.4031','84.9051','84.4224','83.9524','83.4928','83.0419','82.5981','82.1601','81.7267','81.2967','80.8694','80.4437','80.0188','79.5940','79.1684','78.7414','78.3122','77.8802','77.4445','77.0046','76.5595','76.1087','75.6511','75.1861','74.7127','74.2298','73.7366','73.2317','72.7140','72.1820','71.6342','71.0689','70.4840','69.8773','69.2463','68.5879','67.8985','67.1741','66.4097','65.5992','64.7353','63.8086','62.8076','61.7167','60.5159','59.1769','57.6599','55.9046','53.8143','51.2187','47.7726','42.5842','31.5189'];
-const B = 8;   // a fixed box that keeps every final score above zero
+      <section>
+        <h2 class="big">What it says</h2>
+        <ul class="says">
+          <li>
+            <strong>A transformer fits in layout.</strong> Attention needed two new moves: <code>cqw</code> to multiply
+            two numbers that are both still being worked out, and <code>flex-grow</code> to divide by a total.
+            <span id="say-acc">Run the race for the numbers on your machine.</span>
+          </li>
+          <li>
+            <strong>It learned Latin, sort of.</strong> Trained on the five books of <i>De Finibus</i> (about 47,000
+            words) for 70 seconds on two CPU cores. On a stretch it never saw, it is about 6 times less surprised by
+            each piece than a model that only knows how common each piece is (3.62 against 5.39 nats a piece). Most of
+            what it writes is real Latin words in plausible order, which is also a fair description of lorem ipsum.
+          </li>
+          <li>
+            <strong>The model was built for the page.</strong> No layer norms, because dividing by a square root needed
+            another stage. Attention shares are score ÷ (1 + total) with negative scores clamped, not the usual
+            exponential, because flex-grow does that directly. Rotation angles repeat every 64 pieces, so the 16-slot
+            ring never has to shift.
+          </li>
+        </ul>
+        <h3 class="sub3">Gotchas found on the way</h3>
+        <ul class="says">
+          <li>
+            If the grow factors in a flex row add up to less than 1, flexbox only hands out that fraction of the room.
+            The sink of 1 keeps the total above 1, so the shares stay exact.
+          </li>
+          <li>
+            A size container can't take its size from its contents, so the product box can't be the container. The
+            container is a wrapper, and the product is the height of the box inside.
+          </li>
+          <li>
+            Ten stages have to finish inside one frame, and a <code>ResizeObserver</code> only reports elements deeper
+            in the page than the last ones it reported. The stages are nested one inside the next and drawn with
+            <code>display: contents</code>, so they can still sit in a grid.
+          </li>
+          <li>
+            The residual connections let a stage start on half-new inputs: the feed-forward output stage hears from the
+            attention stage before the feed-forward input stage has finished. That sent early, wrong waves down the
+            machine. The fix holds a few copies back until the stage before has reported, so each big stage is laid out
+            once per piece. A piece is finished when a whole frame passes with nothing resized.
+          </li>
+          <li>
+            Chrome stops drawing a single box past about 16,000 pixels. The scores are 1,024 pixels a unit, so the
+            pick's bars arrive in <code>cqw</code> of a 3-pixel-wide container instead: the same numbers, three
+            hundredths of a pixel each.
+          </li>
+          <li>
+            Tested in Chrome, and it also runs in Safari on iOS. Drawing the shrunken machine costs time on top of the
+            sums, so a phone is slower.
+          </li>
+        </ul>
+      </section>
+    </main>
+    <script type="module">
+      // How this script is laid out:
+      //   1. Load the weights (model.json, written by tools/export_lorem.py).
+      //   2. Write the embedding and rotation tables as CSS classes, and build the ten stages of boxes. Every weight
+      //      becomes a box whose aspect-ratio is the weight, written as text: no multiplying.
+      //   3. The courier: a ResizeObserver that copies each stage's answers (box sizes) into the next stage.
+      //   4. step(): put a piece and its position in as class names and wait until nothing moves. The pick is the lane
+      //      whose mark appeared.
+      //   5. The prompt splitter, the typesetter and the generate loop.
+      //   6. The checker: a plain JavaScript copy of the model, used only by the race and window.selfTest().
+      const $ = id => document.getElementById(id);
+      const M = await (await fetch('model.json')).json();
+      const VOC = M.vocab,
+        V = VOC.length,
+        D = M.D,
+        H = M.H,
+        HD = M.HD,
+        FF = M.FF,
+        W = M.W,
+        P = M.PERIOD,
+        J = M.turns.length;
+      // A weight's sign and size, read off its text: '-0.31' is negative with size '0.31'. No arithmetic.
+      const neg = v => String(v).startsWith('-'),
+        mag = v => (neg(v) ? String(v).slice(1) : String(v));
+      const show = t => t.replaceAll('▁', ' ');
+      const html = s => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;');
+      // The dice curve: 64 step widths, in percent of the temperature box. Step k is 100 − 10 × (2 + g), where
+      // g = −ln(−ln((k + 0.5) / 64)) is a Gumbel roll. Worked out ahead of time, like the weights.
+      // prettier-ignore
+      const CURVE = [
+        '95.7940', '93.2267', '91.7637', '90.6682', '89.7637', '88.9777', '88.2728', '87.6266',
+        '87.0251', '86.4584', '85.9195', '85.4031', '84.9051', '84.4224', '83.9524', '83.4928',
+        '83.0419', '82.5981', '82.1601', '81.7267', '81.2967', '80.8694', '80.4437', '80.0188',
+        '79.5940', '79.1684', '78.7414', '78.3122', '77.8802', '77.4445', '77.0046', '76.5595',
+        '76.1087', '75.6511', '75.1861', '74.7127', '74.2298', '73.7366', '73.2317', '72.7140',
+        '72.1820', '71.6342', '71.0689', '70.4840', '69.8773', '69.2463', '68.5879', '67.8985',
+        '67.1741', '66.4097', '65.5992', '64.7353', '63.8086', '62.8076', '61.7167', '60.5159',
+        '59.1769', '57.6599', '55.9046', '53.8143', '51.2187', '47.7726', '42.5842', '31.5189',
+      ];
+      const B = 8; // a fixed box that keeps every final score above zero
 
-// ---- stylesheet: pieces and positions as lengths and shapes
-let css = '';
-VOC.forEach((_, t) => { css += `.tk${t}{`; M.emb[t].forEach((v, i) => css += `--x${i}p:${neg(v) ? 0 : mag(v)}em;--x${i}n:${neg(v) ? mag(v) : 0}em;`); css += '}'; });
-M.trig.forEach((row, p) => { css += `.ps${p}{`; row.forEach(([c, s], j) => css += `--c${j}p:${neg(c) ? 0 : mag(c)};--c${j}n:${neg(c) ? mag(c) : 0};--s${j}p:${neg(s) ? 0 : mag(s)};--s${j}n:${neg(s) ? mag(s) : 0};`); css += '}'; });
-M.ang.forEach((row, p) => row.forEach((a, j) => css += `.tile.ps${p} .h${j}{--ang:${a}}`));
-$('gen').textContent = css;
+      // ---- stylesheet: pieces and positions as lengths and shapes
+      let css = '';
+      VOC.forEach((_, t) => {
+        css += `.tk${t}{`;
+        M.emb[t].forEach((v, i) => (css += `--x${i}p:${neg(v) ? 0 : mag(v)}em;--x${i}n:${neg(v) ? mag(v) : 0}em;`));
+        css += '}';
+      });
+      M.trig.forEach((row, p) => {
+        css += `.ps${p}{`;
+        row.forEach(
+          ([c, s], j) =>
+            (css += `--c${j}p:${neg(c) ? 0 : mag(c)};--c${j}n:${neg(c) ? mag(c) : 0};--s${j}p:${neg(s) ? 0 : mag(s)};--s${j}n:${neg(s) ? mag(s) : 0};`),
+        );
+        css += '}';
+      });
+      M.ang.forEach((row, p) => row.forEach((a, j) => (css += `.tile.ps${p} .h${j}{--ang:${a}}`)));
+      $('gen').textContent = css;
 
-// ---- builders. A box: width var(--in), height = width × ratio. sign +1 goes in the adding column.
-const wbox = (inVar, ratio) => `<i style="width:var(--${inVar},0px);aspect-ratio:1 / ${ratio}"></i>`;
-const pbox = (aVar, bVar, k = 'k') => `<div class="t" style="width:var(--${aVar},0px)"><div class="${k}"><i style="height:var(--${bVar},0cqw)"></i></div></div>`;
-const stack = (id, P_, N_, both) => `<div class="stk"><div class="col">${P_}${both ? `<div class="r n" id="${id}n"></div>` : ''}</div><div class="col">${N_}<div class="r p" id="${id}p"></div></div></div>`;
-function matTerms(row, inName, signedIn) {
-  let p = '', n = '';
-  row.forEach((w, i) => { if (!+w) return; const r = mag(w);
-    if (neg(w)) { n += wbox(`${inName}${i}p`, r); if (signedIn) p += wbox(`${inName}${i}n`, r); }
-    else { p += wbox(`${inName}${i}p`, r); if (signedIn) n += wbox(`${inName}${i}n`, r); } });
-  return [p, n];
-}
-const matStack = (id, row, inName) => stack(id, ...matTerms(row, inName, true), true);
-const bias = b => +b ? [neg(b), `<i style="width:1em;aspect-ratio:1 / ${mag(b)}"></i>`] : [false, ''];
-const resid = name => `<i style="width:var(--${name}p,0px);aspect-ratio:1 / 1"></i>`;
-const residN = name => `<i style="width:var(--${name}n,0px);aspect-ratio:1 / 1"></i>`;
+      // ---- builders
+      // wbox: a box as wide as an input and aspect-ratio 1 / weight, so its height is input × weight.
+      // pbox: a product of two live numbers. Outer box a wide; inside, a size container; inside that, a box b cqw tall.
+      // stack: a signed sum. Two columns side by side, adding terms and taking-away terms, each ending in a stretchy
+      //        box. The stretchy box under the taking-away column is the positive part of the answer ('p'), the one
+      //        under the adding column the negative part ('n'). Both are watched by the observer.
+      const wbox = (inVar, ratio) => `<i style="width:var(--${inVar},0px);aspect-ratio:1 / ${ratio}"></i>`;
+      const pbox = (aVar, bVar, k = 'k') =>
+        `<div class="t" style="width:var(--${aVar},0px)"><div class="${k}"><i style="height:var(--${bVar},0cqw)"></i></div></div>`;
+      const stack = (id, P_, N_, both) =>
+        `<div class="stk"><div class="col">${P_}${both ? `<div class="r n" id="${id}n"></div>` : ''}</div><div class="col">${N_}<div class="r p" id="${id}p"></div></div></div>`;
+      function matTerms(row, inName, signedIn) {
+        let p = '',
+          n = '';
+        row.forEach((w, i) => {
+          if (!+w) return;
+          const r = mag(w);
+          if (neg(w)) {
+            n += wbox(`${inName}${i}p`, r);
+            if (signedIn) p += wbox(`${inName}${i}n`, r);
+          } else {
+            p += wbox(`${inName}${i}p`, r);
+            if (signedIn) n += wbox(`${inName}${i}n`, r);
+          }
+        });
+        return [p, n];
+      }
+      // matTerms: one row of a weight matrix times a signed input. Input i has a positive part (--{name}{i}p) and a
+      // negative part (--{name}{i}n); a positive weight adds the positive part and takes away the negative part, and
+      // the other way round for a negative weight. Zero weights get no box.
+      const matStack = (id, row, inName) => stack(id, ...matTerms(row, inName, true), true);
+      // A bias is a box one unit wide with aspect-ratio 1 / bias. A residual input is a box with aspect-ratio 1 / 1.
+      const bias = b => (+b ? [neg(b), `<i style="width:1em;aspect-ratio:1 / ${mag(b)}"></i>`] : [false, '']);
+      const resid = name => `<i style="width:var(--${name}p,0px);aspect-ratio:1 / 1"></i>`;
+      const residN = name => `<i style="width:var(--${name}n,0px);aspect-ratio:1 / 1"></i>`;
 
-// Stage 1: q, k, v before rotation, from the piece's numbers
-let s1 = '';
-['q', 'k', 'v'].forEach(m => M[m].forEach((row, j) => s1 += matStack(`${m}a${j}`, row, 'x')));
-$('S1').innerHTML = s1;
-// Stage 2: rotation. out[2i] = a·cos − b·sin, out[2i+1] = a·sin + b·cos
-let s2 = '';
-const trigTerms = (src, trig, sgn) => { // (src p − src n) × (trig p − trig n) × sgn
-  const T = (a, t, s) => [s > 0, `<i style="width:var(--${a},0px);aspect-ratio:1 / var(--${t})"></i>`];
-  return [T(src + 'p', trig + 'p', sgn), T(src + 'p', trig + 'n', -sgn), T(src + 'n', trig + 'p', -sgn), T(src + 'n', trig + 'n', sgn)]; };
-const rotStacks = m => { for (let h = 0; h < H; h++) for (let j = 0; j < J; j++) { const i = h * HD + 2 * j, a = `${m}a${i}`, b = `${m}a${i + 1}`;
-  for (const [o, terms] of [[i, [...trigTerms(a, `c${j}`, 1), ...trigTerms(b, `s${j}`, -1)]], [i + 1, [...trigTerms(a, `s${j}`, 1), ...trigTerms(b, `c${j}`, 1)]]]) {
-    s2 += stack(`${m}r${o}`, terms.filter(t => t[0]).map(t => t[1]).join(''), terms.filter(t => !t[0]).map(t => t[1]).join(''), true); } } };
-rotStacks('q'); rotStacks('k');
-$('S2').innerHTML = s2;
-// Stage 3: scores, query · each key in the ring (only the positive part is needed)
-let s3 = '';
-for (let h = 0; h < H; h++) for (let r = 0; r < W; r++) { let p = '', n = '';
-  for (let d = 0; d < HD; d++) { const i = h * HD + d;
-    p += pbox(`q${i}p`, `kp${r}_${i}`) + pbox(`q${i}n`, `kn${r}_${i}`); n += pbox(`q${i}p`, `kn${r}_${i}`) + pbox(`q${i}n`, `kp${r}_${i}`); }
-  s3 += stack(`s${h}_${r}`, p, n, false); }
-$('S3').innerHTML = s3;
-// Stage 4: attention shares
-$('S4').innerHTML = [...Array(H).keys()].map(h => `<div class="arow">${[...Array(W).keys()].map(r => `<b id="a${h}_${r}" style="flex-grow:var(--g${h}_${r},0)"></b>`).join('')}<b class="sink" style="flex-grow:1024">sink</b></div>`).join('');
-// Stage 5: shares × values
-let s5 = '';
-for (let i = 0; i < D; i++) { const h = Math.floor(i / HD); let p = '', n = '';   // which head a dimension belongs to: a fixed table, not model arithmetic
-  for (let r = 0; r < W; r++) { p += pbox(`a${h}_${r}w`, `vp${r}_${i}`, 'k3'); n += pbox(`a${h}_${r}w`, `vn${r}_${i}`, 'k3'); }
-  s5 += stack(`at${i}`, p, n, true); }
-$('S5').innerHTML = s5;
-// Stage 6: h1 = x + O·a
-$('S6').innerHTML = M.o.map((row, j) => { const [p, n] = matTerms(row, 'at', true); return stack(`h1_${j}`, resid(`x${j}`) + p, residN(`x${j}`) + n, true); }).join('');
-// Stage 7: f = relu(F1·h1 + b)
-$('S7').innerHTML = M.f1.map((row, j) => { const [bn, bb] = bias(M.f1b[j]); const [p, n] = matTerms(row, 'h1_', true);
-  return stack(`f${j}`, bn ? p : p + bb, bn ? n + bb : n, false); }).join('');
-// Stage 8: h2 = h1 + F2·f + b
-$('S8').innerHTML = M.f2.map((row, j) => { const [bn, bb] = bias(M.f2b[j]); let p = resid(`h1_${j}`), n = residN(`h1_${j}`);
-  row.forEach((w, i) => { if (!+w) return; if (neg(w)) n += wbox(`f${i}p`, mag(w)); else p += wbox(`f${i}p`, mag(w)); });
-  return stack(`h2_${j}`, bn ? p : p + bb, bn ? n + bb : n, true); }).join('');
-// Stage 9: logits + B + dice
-$('S9').innerHTML = M.head.map((row, o) => { const [bn, bb] = bias(M.headb[o]); let [p, n] = matTerms(row, 'h2_', true); p = `<i style="width:1em;aspect-ratio:1 / ${B}"></i>` + p;
-  return stack(`L${o}`, bn ? p : p + bb, bn ? n + bb : n, false); }).join('');
-// The dice and the pick
-const stairs = CURVE.map(w => `<b style="width:${w}%"></b>`).join('');
-$('dice').innerHTML = VOC.map((_, o) => `<div class="dslot" title="${html(show(VOC[o]))}"><div class="dn"><i class="tb"></i><div class="die">${stairs}<div class="sp" style="height:var(--y${o},0px)"></div><div class="pr" id="d${o}"></div></div></div></div>`).join('');
-$('pod').innerHTML = VOC.map((_, o) => `<div class="lane"><b style="width:var(--L${o},0px)"></b><b class="roll" style="width:var(--g${o},0px)"></b><s><u id="u${o}"></u></s></div>`).join('');
-$('tiles').innerHTML = [...Array(W).keys()].map(r => `<div class="tile" id="tile${r}"><span class="w" id="tw${r}">·</span><div class="dial">${M.turns.map((_, j) => `<i class="h${j}"></i>`).join('')}</div><span class="pn" id="tp${r}"></span></div>`).join('');
+      // Stage 1: q, k, v before rotation, from the piece's numbers
+      let s1 = '';
+      ['q', 'k', 'v'].forEach(m => M[m].forEach((row, j) => (s1 += matStack(`${m}a${j}`, row, 'x'))));
+      $('S1').innerHTML = s1;
+      // Stage 2: rotation. out[2i] = a·cos − b·sin, out[2i+1] = a·sin + b·cos
+      let s2 = '';
+      const trigTerms = (src, trig, sgn) => {
+        // (src p − src n) × (trig p − trig n) × sgn
+        const T = (a, t, s) => [s > 0, `<i style="width:var(--${a},0px);aspect-ratio:1 / var(--${t})"></i>`];
+        return [
+          T(src + 'p', trig + 'p', sgn),
+          T(src + 'p', trig + 'n', -sgn),
+          T(src + 'n', trig + 'p', -sgn),
+          T(src + 'n', trig + 'n', sgn),
+        ];
+      };
+      const rotStacks = m => {
+        for (let h = 0; h < H; h++)
+          for (let j = 0; j < J; j++) {
+            const i = h * HD + 2 * j,
+              a = `${m}a${i}`,
+              b = `${m}a${i + 1}`;
+            for (const [o, terms] of [
+              [i, [...trigTerms(a, `c${j}`, 1), ...trigTerms(b, `s${j}`, -1)]],
+              [i + 1, [...trigTerms(a, `s${j}`, 1), ...trigTerms(b, `c${j}`, 1)]],
+            ]) {
+              s2 += stack(
+                `${m}r${o}`,
+                terms
+                  .filter(t => t[0])
+                  .map(t => t[1])
+                  .join(''),
+                terms
+                  .filter(t => !t[0])
+                  .map(t => t[1])
+                  .join(''),
+                true,
+              );
+            }
+          }
+      };
+      rotStacks('q');
+      rotStacks('k');
+      $('S2').innerHTML = s2;
+      // Stage 3: scores, query · each key in the ring (only the positive part is needed)
+      let s3 = '';
+      for (let h = 0; h < H; h++)
+        for (let r = 0; r < W; r++) {
+          let p = '',
+            n = '';
+          for (let d = 0; d < HD; d++) {
+            const i = h * HD + d;
+            p += pbox(`q${i}p`, `kp${r}_${i}`) + pbox(`q${i}n`, `kn${r}_${i}`);
+            n += pbox(`q${i}p`, `kn${r}_${i}`) + pbox(`q${i}n`, `kp${r}_${i}`);
+          }
+          s3 += stack(`s${h}_${r}`, p, n, false);
+        }
+      $('S3').innerHTML = s3;
+      // Stage 4: attention shares
+      $('S4').innerHTML = [...Array(H).keys()]
+        .map(
+          h =>
+            `<div class="arow">${[...Array(W).keys()].map(r => `<b id="a${h}_${r}" style="flex-grow:var(--g${h}_${r},0)"></b>`).join('')}<b class="sink" style="flex-grow:1024">sink</b></div>`,
+        )
+        .join('');
+      // Stage 5: shares × values
+      let s5 = '';
+      for (let i = 0; i < D; i++) {
+        const h = Math.floor(i / HD); // which head dimension i belongs to: building the boxes, not model arithmetic
+        let p = '',
+          n = '';
+        for (let r = 0; r < W; r++) {
+          p += pbox(`a${h}_${r}w`, `vp${r}_${i}`, 'k3');
+          n += pbox(`a${h}_${r}w`, `vn${r}_${i}`, 'k3');
+        }
+        s5 += stack(`at${i}`, p, n, true);
+      }
+      $('S5').innerHTML = s5;
+      // Stage 6: h1 = x + O·a
+      $('S6').innerHTML = M.o
+        .map((row, j) => {
+          const [p, n] = matTerms(row, 'at', true);
+          return stack(`h1_${j}`, resid(`x${j}`) + p, residN(`x${j}`) + n, true);
+        })
+        .join('');
+      // Stage 7: f = relu(F1·h1 + b)
+      $('S7').innerHTML = M.f1
+        .map((row, j) => {
+          const [bn, bb] = bias(M.f1b[j]);
+          const [p, n] = matTerms(row, 'h1_', true);
+          return stack(`f${j}`, bn ? p : p + bb, bn ? n + bb : n, false);
+        })
+        .join('');
+      // Stage 8: h2 = h1 + F2·f + b
+      $('S8').innerHTML = M.f2
+        .map((row, j) => {
+          const [bn, bb] = bias(M.f2b[j]);
+          let p = resid(`h1_${j}`),
+            n = residN(`h1_${j}`);
+          row.forEach((w, i) => {
+            if (!+w) return;
+            if (neg(w)) n += wbox(`f${i}p`, mag(w));
+            else p += wbox(`f${i}p`, mag(w));
+          });
+          return stack(`h2_${j}`, bn ? p : p + bb, bn ? n + bb : n, true);
+        })
+        .join('');
+      // Stage 9: a score for every piece, plus the fixed box B that keeps it above zero. The dice join at the pick.
+      $('S9').innerHTML = M.head
+        .map((row, o) => {
+          const [bn, bb] = bias(M.headb[o]);
+          let [p, n] = matTerms(row, 'h2_', true);
+          p = `<i style="width:1em;aspect-ratio:1 / ${B}"></i>` + p;
+          return stack(`L${o}`, bn ? p : p + bb, bn ? n + bb : n, false);
+        })
+        .join('');
+      // The dice (one staircase of floats per piece) and the pick (one lane per piece: score bar, roll bar, room)
+      const stairs = CURVE.map(w => `<b style="width:${w}%"></b>`).join('');
+      $('dice').innerHTML = VOC.map(
+        (_, o) =>
+          `<div class="dslot" title="${html(show(VOC[o]))}"><div class="dn"><i class="tb"></i><div class="die">${stairs}<div class="sp" style="height:var(--y${o},0px)"></div><div class="pr" id="d${o}"></div></div></div></div>`,
+      ).join('');
+      $('pod').innerHTML = VOC.map(
+        (_, o) =>
+          `<div class="lane"><b style="width:var(--L${o},0px)"></b><b class="roll" style="width:var(--g${o},0px)"></b><s><u id="u${o}"></u></s></div>`,
+      ).join('');
+      $('tiles').innerHTML = [...Array(W).keys()]
+        .map(
+          r =>
+            `<div class="tile" id="tile${r}"><span class="w" id="tw${r}">·</span><div class="dial">${M.turns.map((_, j) => `<i class="h${j}"></i>`).join('')}</div><span class="pn" id="tp${r}"></span></div>`,
+        )
+        .join('');
 
-const mach = $('mach'), pod = $('pod');
-const boxes = mach.querySelectorAll('i, .die > b, .t').length;
+      const mach = $('mach'),
+        pod = $('pod');
+      const boxes = mach.querySelectorAll('i, .die > b, .t').length;
 
-// ---- the courier
-// Each observed box belongs to a stage. When it reports, its size is copied to the stage that reads it.
-// Writes that would let a stage start early on half-new inputs are held back until the stage before it reports,
-// so every big stage is laid out once per piece.
-const S = n => $('S' + n), dice = $('dice');
-const obs = new Map(); let slot = 0;
-const lastK = {}, lastV = {}, lastH1 = {}, dotW = new Array(V).fill(0), scores = new Array(V).fill(0);
-const reg = (stage, id, dim, fn) => obs.set($(id), { stage, dim, fn });
-const setp = (el, name, v) => el.style.setProperty(name, v);
-for (let i = 0; i < D; i++) for (const s of 'pn') {
-  reg(1, `qa${i}${s}`, 'h', w => setp(S(2), `--qa${i}${s}`, w + 'px'));
-  reg(1, `ka${i}${s}`, 'h', w => setp(S(2), `--ka${i}${s}`, w + 'px'));
-  reg(1, `va${i}${s}`, 'h', w => { lastV[`${s}_${i}`] = w; if (!held[4]) setp(S(5), `--v${s}${slot}_${i}`, w + 'cqw'); });                 // held until the attention shares are ready
-  reg(2, `qr${i}${s}`, 'h', w => setp(S(3), `--q${i}${s}`, w + 'px'));
-  reg(2, `kr${i}${s}`, 'h', w => { lastK[`${s}_${i}`] = w; setp(S(3), `--k${s}${slot}_${i}`, w + 'cqw'); });
-  reg(5, `at${i}${s}`, 'h', w => setp(S(6), `--at${i}${s}`, w + 'px'));
-  reg(6, `h1_${i}${s}`, 'h', w => { setp(S(7), `--h1_${i}${s}`, w + 'px'); lastH1[`${i}${s}`] = w; if (!held[7]) setp(S(8), `--h1_${i}${s}`, w + 'px'); });   // stage 8 gets it after stage 7
-  reg(8, `h2_${i}${s}`, 'h', w => setp(S(9), `--h2_${i}${s}`, w + 'px'));
-}
-for (let h = 0; h < H; h++) for (let r = 0; r < W; r++) { reg(3, `s${h}_${r}p`, 'h', w => setp(S(4), `--g${h}_${r}`, String(w))); reg(4, `a${h}_${r}`, 'w', w => setp(S(5), `--a${h}_${r}w`, w + 'px')); }
-for (let j = 0; j < FF; j++) reg(7, `f${j}p`, 'h', w => setp(S(8), `--f${j}p`, w + 'px'));
-for (let o = 0; o < V; o++) { reg(9, `L${o}p`, 'h', w => { scores[o] = w; setp(pod, `--L${o}`, w + 'cqw'); }); reg(0, `d${o}`, 'w', w => setp(pod, `--g${o}`, w + 'cqw')); reg(10, `u${o}`, 'w', w => { dotW[o] = w; }); }
+      // ---- the courier
+      // Each observed box belongs to a stage. When it reports, its size is copied to the stage that reads it.
+      // Writes that would let a stage start early on half-new inputs are held back until the stage before it reports,
+      // so every big stage is laid out once per piece.
+      const S = n => $('S' + n),
+        dice = $('dice');
+      const obs = new Map();
+      let slot = 0;
+      const lastK = {},
+        lastV = {},
+        lastH1 = {},
+        dotW = new Array(V).fill(0),
+        scores = new Array(V).fill(0);
+      const reg = (stage, id, dim, fn) => obs.set($(id), { stage, dim, fn });
+      const setp = (el, name, v) => el.style.setProperty(name, v);
+      for (let i = 0; i < D; i++)
+        for (const s of 'pn') {
+          reg(1, `qa${i}${s}`, 'h', w => setp(S(2), `--qa${i}${s}`, w + 'px'));
+          reg(1, `ka${i}${s}`, 'h', w => setp(S(2), `--ka${i}${s}`, w + 'px'));
+          reg(1, `va${i}${s}`, 'h', w => {
+            lastV[`${s}_${i}`] = w;
+            if (!held[4]) setp(S(5), `--v${s}${slot}_${i}`, w + 'cqw');
+          }); // held until the attention shares are ready
+          reg(2, `qr${i}${s}`, 'h', w => setp(S(3), `--q${i}${s}`, w + 'px'));
+          reg(2, `kr${i}${s}`, 'h', w => {
+            lastK[`${s}_${i}`] = w;
+            setp(S(3), `--k${s}${slot}_${i}`, w + 'cqw');
+          });
+          reg(5, `at${i}${s}`, 'h', w => setp(S(6), `--at${i}${s}`, w + 'px'));
+          reg(6, `h1_${i}${s}`, 'h', w => {
+            setp(S(7), `--h1_${i}${s}`, w + 'px');
+            lastH1[`${i}${s}`] = w;
+            if (!held[7]) setp(S(8), `--h1_${i}${s}`, w + 'px');
+          }); // stage 8 gets it after stage 7
+          reg(8, `h2_${i}${s}`, 'h', w => setp(S(9), `--h2_${i}${s}`, w + 'px'));
+        }
+      for (let h = 0; h < H; h++)
+        for (let r = 0; r < W; r++) {
+          reg(3, `s${h}_${r}p`, 'h', w => setp(S(4), `--g${h}_${r}`, String(w)));
+          reg(4, `a${h}_${r}`, 'w', w => setp(S(5), `--a${h}_${r}w`, w + 'px'));
+        }
+      for (let j = 0; j < FF; j++) reg(7, `f${j}p`, 'h', w => setp(S(8), `--f${j}p`, w + 'px'));
+      for (let o = 0; o < V; o++) {
+        reg(9, `L${o}p`, 'h', w => {
+          scores[o] = w;
+          setp(pod, `--L${o}`, w + 'cqw');
+        });
+        reg(0, `d${o}`, 'w', w => setp(pod, `--g${o}`, w + 'cqw'));
+        reg(10, `u${o}`, 'w', w => {
+          dotW[o] = w;
+        });
+      }
 
-// What each stage releases when it reports (run before that stage's own copies).
-let held = {}, tok0 = 0;
-const release = st => { const f = held[st]; if (f) { delete held[st]; f(); } };
-function holdFor() {
-  held = {
-    1: () => { S(2).className = `stg ps${(pos - 1) % P}`; },                                   // the new position, once the new q and k exist
-    2: () => { for (const [k, w] of Object.entries(lastK)) setp(S(3), `--k${k[0]}${slot}${k.slice(1)}`, w + 'cqw'); },
-    4: () => { for (const [k, w] of Object.entries(lastV)) setp(S(5), `--v${k[0]}${slot}${k.slice(1)}`, w + 'cqw'); },
-    5: () => { S(6).className = `stg tk${tok0}`; },
-    7: () => { for (const [k, w] of Object.entries(lastH1)) setp(S(8), `--h1_${k}`, w + 'px'); },
-  };
-}
-let fired = false, rounds = 0;
-const ro = new ResizeObserver(entries => {
-  fired = true; rounds++;
-  const by = new Map();
-  for (const e of entries) { const o = obs.get(e.target); if (!o) continue; if (!by.has(o.stage)) by.set(o.stage, []); by.get(o.stage).push([o, o.dim === 'h' ? e.contentRect.height : e.contentRect.width]); }
-  for (const st of [...by.keys()].sort((a, b) => a - b)) { release(st); for (const [o, w] of by.get(st)) o.fn(w); }
-});
-for (const el of obs.keys()) ro.observe(el);
+      // What each stage releases when it reports (run before that stage's own copies).
+      let held = {},
+        tok0 = 0;
+      const release = st => {
+        const f = held[st];
+        if (f) {
+          delete held[st];
+          f();
+        }
+      };
+      // The writes each stage releases when it reports. Without these, a stage that also reads something from further
+      // back (the residual, the ring, the position) would start early on half-new inputs and send a wrong wave down.
+      function holdFor() {
+        held = {
+          // after stage 1: the new position, so rotation starts once the new q and k exist
+          1: () => {
+            S(2).className = `stg ps${(pos - 1) % P}`;
+          },
+          // after stage 2: the last key the slot should hold (parts that didn't change size never report)
+          2: () => {
+            for (const [k, w] of Object.entries(lastK)) setp(S(3), `--k${k[0]}${slot}${k.slice(1)}`, w + 'cqw');
+          },
+          // after stage 4: the new value into its ring slot, once the attention shares are ready
+          4: () => {
+            for (const [k, w] of Object.entries(lastV)) setp(S(5), `--v${k[0]}${slot}${k.slice(1)}`, w + 'cqw');
+          },
+          // after stage 5: the piece's own numbers for the residual add
+          5: () => {
+            S(6).className = `stg tk${tok0}`;
+          },
+          // after stage 7: the residual stream for the feed-forward output stage
+          7: () => {
+            for (const [k, w] of Object.entries(lastH1)) setp(S(8), `--h1_${k}`, w + 'px');
+          },
+        };
+      }
+      // The observer delivers sizes in rounds inside one frame. Each round: group by stage, release what that stage
+      // was holding back, then copy its sizes on.
+      let fired = false;
+      const ro = new ResizeObserver(entries => {
+        fired = true;
+        const by = new Map();
+        for (const e of entries) {
+          const o = obs.get(e.target);
+          if (!o) continue;
+          if (!by.has(o.stage)) by.set(o.stage, []);
+          by.get(o.stage).push([o, o.dim === 'h' ? e.contentRect.height : e.contentRect.width]);
+        }
+        for (const st of [...by.keys()].sort((a, b) => a - b)) {
+          release(st);
+          for (const [o, w] of by.get(st)) o.fn(w);
+        }
+      });
+      for (const el of obs.keys()) ro.observe(el);
 
-// One step: the piece goes in as a class name. The step is done when a whole frame passes with nothing resized.
-let pos = 0, stats = { frames: 0, released: 0 };
-function step(tok, T) {
-  return new Promise(resolve => {
-    slot = pos % W; tok0 = tok; holdFor();
-    setp(dice, '--T', T);
-    crypto.getRandomValues(new Uint8Array(V)).forEach((r, o) => setp(dice, `--y${o}`, r + 'em'));   // 0 to 255 quarter-steps: the spacer's font is a quarter of a step tall
-    S(1).className = `stg tk${tok}`;
-    $(`tw${slot}`).textContent = show(VOC[tok]); $(`tp${slot}`).textContent = '#' + pos;
-    document.querySelectorAll('.tile.now').forEach(t => t.classList.remove('now')); $(`tile${slot}`).className = `tile now ps${pos % P}`;
-    for (let h = 0; h < H; h++) for (let r = 0; r < W; r++) $(`a${h}_${r}`).textContent = $(`tw${r}`).textContent;
-    pos++; fired = false; let frames = 0;
-    const check = () => { frames++;
-      if (fired) { fired = false; return requestAnimationFrame(check); }
-      const left = Object.keys(held); if (left.length) { stats.released += left.length; left.sort((a, b) => a - b).forEach(release); return requestAnimationFrame(check); }   // a stage that didn't change never reports
-      stats.frames += frames; resolve({ win: dotW.findIndex(w => w > 0), scores: [...scores] }); };
-    requestAnimationFrame(() => requestAnimationFrame(check));   // the first frame is the one that lays it out
-  });
-}
-function reset() { pos = 0; for (const o of [lastK, lastV, lastH1]) for (const k of Object.keys(o)) delete o[k];
-  for (let r = 0; r < W; r++) { for (let i = 0; i < D; i++) for (const s of 'pn') { setp(S(3), `--k${s}${r}_${i}`, '0cqw'); setp(S(5), `--v${s}${r}_${i}`, '0cqw'); }
-  $(`tw${r}`).textContent = '·'; $(`tp${r}`).textContent = ''; $(`tile${r}`).className = 'tile'; } }
-const frame = () => new Promise(r => requestAnimationFrame(() => r()));
+      // One step: the piece goes in as a class name. The step is done when a whole frame passes with nothing resized.
+      let pos = 0,
+        stats = { frames: 0, released: 0 };
+      function step(tok, T) {
+        return new Promise(resolve => {
+          slot = pos % W;
+          tok0 = tok;
+          holdFor();
+          setp(dice, '--T', T);
+          // The dice: a random byte per piece, written as that many em. The spacer's font is a quarter of a step
+          // tall, so 0 to 255 quarter-steps lands on one of the 64 steps with equal odds.
+          crypto.getRandomValues(new Uint8Array(V)).forEach((r, o) => setp(dice, `--y${o}`, r + 'em'));
+          S(1).className = `stg tk${tok}`;
+          $(`tw${slot}`).textContent = show(VOC[tok]);
+          $(`tp${slot}`).textContent = '#' + pos;
+          document.querySelectorAll('.tile.now').forEach(t => t.classList.remove('now'));
+          $(`tile${slot}`).className = `tile now ps${pos % P}`;
+          for (let h = 0; h < H; h++) for (let r = 0; r < W; r++) $(`a${h}_${r}`).textContent = $(`tw${r}`).textContent;
+          pos++;
+          fired = false;
+          let frames = 0;
+          const check = () => {
+            frames++;
+            if (fired) {
+              fired = false;
+              return requestAnimationFrame(check);
+            }
+            // A stage whose answer didn't change never reports, so anything it was holding back goes out now.
+            const left = Object.keys(held);
+            if (left.length) {
+              stats.released += left.length;
+              left.sort((a, b) => a - b).forEach(release);
+              return requestAnimationFrame(check);
+            }
+            stats.frames += frames;
+            resolve({ win: dotW.findIndex(w => w > 0), scores: [...scores] });
+          };
+          requestAnimationFrame(() => requestAnimationFrame(check)); // the first frame is the one that lays it out
+        });
+      }
+      // Empty the ring (all keys and values to zero) and the slot tiles, for a new prompt.
+      function reset() {
+        pos = 0;
+        for (const o of [lastK, lastV, lastH1]) for (const k of Object.keys(o)) delete o[k];
+        for (let r = 0; r < W; r++) {
+          for (let i = 0; i < D; i++)
+            for (const s of 'pn') {
+              setp(S(3), `--k${s}${r}_${i}`, '0cqw');
+              setp(S(5), `--v${s}${r}_${i}`, '0cqw');
+            }
+          $(`tw${r}`).textContent = '·';
+          $(`tp${r}`).textContent = '';
+          $(`tile${r}`).className = 'tile';
+        }
+      }
+      const frame = () => new Promise(r => requestAnimationFrame(() => r()));
 
-// ---- the prompt, split with the model's own merge list
-const rank = new Map(M.merges.map((m, i) => [m.join(' '), i])), ids = new Map(VOC.map((t, i) => [t, i]));
-function encode(text) {
-  text = text.toLowerCase().replaceAll('j', 'i').replace(/[;:!?]/g, '.').replace(/[^a-z,. ]/g, ' ').replace(/\s*([,.])/g, '$1').replace(/ +/g, ' ').trim();
-  const out = [];
-  for (const w of text.split(' ')) { let parts = [...('▁' + w)];
-    while (parts.length > 1) { let best = -1, at = -1; for (let i = 0; i < parts.length - 1; i++) { const r = rank.get(parts[i] + ' ' + parts[i + 1]); if (r !== undefined && (best < 0 || r < best)) { best = r; at = i; } }
-      if (at < 0) break; parts.splice(at, 2, parts[at] + parts[at + 1]); }
-    for (const p of parts) if (ids.has(p)) out.push(ids.get(p)); }
-  return out;
-}
+      // ---- the prompt, split with the model's own merge list
+      const rank = new Map(M.merges.map((m, i) => [m.join(' '), i])),
+        ids = new Map(VOC.map((t, i) => [t, i]));
+      // Clean the text the way the training text was cleaned, then merge letters into pieces by the merge list's order.
+      function encode(text) {
+        text = text
+          .toLowerCase()
+          .replaceAll('j', 'i')
+          .replace(/[;:!?]/g, '.')
+          .replace(/[^a-z,. ]/g, ' ')
+          .replace(/\s*([,.])/g, '$1')
+          .replace(/ +/g, ' ')
+          .trim();
+        const out = [];
+        for (const w of text.split(' ')) {
+          let parts = [...('▁' + w)];
+          while (parts.length > 1) {
+            let best = -1,
+              at = -1;
+            for (let i = 0; i < parts.length - 1; i++) {
+              const r = rank.get(parts[i] + ' ' + parts[i + 1]);
+              if (r !== undefined && (best < 0 || r < best)) {
+                best = r;
+                at = i;
+              }
+            }
+            if (at < 0) break;
+            parts.splice(at, 2, parts[at] + parts[at + 1]);
+          }
+          for (const p of parts) if (ids.has(p)) out.push(ids.get(p));
+        }
+        return out;
+      }
 
-// ---- the typesetter: letters go out at an even pace, the pace the machine has been keeping
-let queue = '', avgMs = 900, avgLen = 3, lastChar = 0;
-const gen1 = $('gen1');
-(function type(t) { if (queue && t - lastChar > Math.min(avgMs / avgLen, 400) / (queue.length > 24 ? 4 : 1)) { gen1.textContent += queue[0]; queue = queue.slice(1); lastChar = t; } requestAnimationFrame(type); })(0);
+      // ---- the typesetter: letters go out at an even pace, the pace the machine has been keeping
+      // (average ms per piece ÷ average letters per piece, faster if a backlog builds). Display only.
+      let queue = '',
+        avgMs = 900,
+        avgLen = 3,
+        lastChar = 0;
+      const gen1 = $('gen1');
+      (function type(t) {
+        if (queue && t - lastChar > Math.min(avgMs / avgLen, 400) / (queue.length > 24 ? 4 : 1)) {
+          gen1.textContent += queue[0];
+          queue = queue.slice(1);
+          lastChar = t;
+        }
+        requestAnimationFrame(type);
+      })(0);
 
-let run = 0;
-async function generate() {
-  const id = ++run, toks = encode($('seed').value); if (!toks.length) return;
-  reset(); queue = ''; gen1.textContent = ''; $('seedtxt').textContent = toks.map(t => show(VOC[t])).join('').trim();
-  $('stop').disabled = false; $('race').disabled = true;
-  const T = $('temp').value; let res, n = 0, t0;
-  for (const t of toks) { res = await step(t, T); await frame(); if (id !== run) return; }
-  t0 = performance.now(); let made = 0, chars = 0;
-  while (made < 300 && id === run) {
-    const tok = res.win; made++; const s = show(VOC[tok]); chars += s.length; queue += s;
-    $('won').textContent = s.trim() || '␣'; $('wonctx').textContent = `piece ${tok} of ${V}`;
-    res = await step(tok, $('temp').value); if (id !== run) break;
-    avgMs = (performance.now() - t0) / made; avgLen = chars / made;
-    $('stat').textContent = `${made} pieces · ${avgMs.toFixed(0)} ms per piece · ${boxes.toLocaleString()} boxes laid out each time`;
-    await frame();
-  }
-  if (id === run) { $('stop').disabled = true; $('race').disabled = false; }
-}
-$('f').addEventListener('submit', e => { e.preventDefault(); generate(); });
-$('stop').addEventListener('click', () => { run++; $('stop').disabled = true; $('race').disabled = false; });
+      // ---- generate: feed the prompt one piece at a time (filling the ring), then keep feeding back each pick.
+      let run = 0;
+      async function generate() {
+        const id = ++run,
+          toks = encode($('seed').value);
+        if (!toks.length) return;
+        reset();
+        queue = '';
+        gen1.textContent = '';
+        $('seedtxt').textContent = toks
+          .map(t => show(VOC[t]))
+          .join('')
+          .trim();
+        $('stop').disabled = false;
+        $('race').disabled = true;
+        const T = $('temp').value;
+        let res,
+          n = 0,
+          t0;
+        for (const t of toks) {
+          res = await step(t, T);
+          await frame();
+          if (id !== run) return;
+        }
+        t0 = performance.now();
+        let made = 0,
+          chars = 0;
+        while (made < 300 && id === run) {
+          const tok = res.win;
+          made++;
+          const s = show(VOC[tok]);
+          chars += s.length;
+          queue += s;
+          $('won').textContent = s.trim() || '␣';
+          $('wonctx').textContent = `piece ${tok} of ${V}`;
+          res = await step(tok, $('temp').value);
+          if (id !== run) break;
+          avgMs = (performance.now() - t0) / made;
+          avgLen = chars / made;
+          $('stat').textContent =
+            `${made} pieces · ${avgMs.toFixed(0)} ms per piece · ${boxes.toLocaleString()} boxes laid out each time`;
+          await frame();
+        }
+        if (id === run) {
+          $('stop').disabled = true;
+          $('race').disabled = false;
+        }
+      }
+      $('f').addEventListener('submit', e => {
+        e.preventDefault();
+        generate();
+      });
+      $('stop').addEventListener('click', () => {
+        run++;
+        $('stop').disabled = true;
+        $('race').disabled = false;
+      });
 
-// ---- THE CHECKER. Everything below is ordinary JavaScript arithmetic, run only in the race.
-function refModel() {
-  const K = [...Array(W)].map(() => new Float64Array(D)), Vv = [...Array(W)].map(() => new Float64Array(D)), used = new Array(W).fill(false); let t = 0;
-  const mv = (Mx, x) => Mx.map(r => r.reduce((a, w, i) => a + w * x[i], 0));
-  return tok => { const x = M.emb[tok], c = M.trig[t % P]; let q = mv(M.q, x), k = mv(M.k, x); const v = mv(M.v, x);
-    const rot = a => { const o = [...a]; for (let h = 0; h < H; h++) for (let j = 0; j < J; j++) { const i = h * HD + 2 * j, [cs, sn] = c[j]; o[i] = a[i] * cs - a[i + 1] * sn; o[i + 1] = a[i] * sn + a[i + 1] * cs; } return o; };
-    q = rot(q); k = rot(k); const r = t % W; K[r].set(k); Vv[r].set(v); used[r] = true; t++;
-    const at = new Array(D).fill(0);
-    for (let h = 0; h < H; h++) { const s = K.map((kk, j) => used[j] ? Math.max(0, q.slice(h * HD, h * HD + HD).reduce((a, qv, d) => a + qv * kk[h * HD + d], 0)) : 0), z = 1 + s.reduce((a, b) => a + b, 0);
-      for (let d = 0; d < HD; d++) at[h * HD + d] = s.reduce((a, sv, j) => a + sv / z * Vv[j][h * HD + d], 0); }
-    const h1 = x.map((xv, i) => xv + mv(M.o, at)[i]); const f = mv(M.f1, h1).map((v, i) => Math.max(0, v + M.f1b[i]));
-    const h2 = h1.map((hv, i) => hv + mv(M.f2, f)[i] + M.f2b[i]); return mv(M.head, h2).map((v, i) => v + M.headb[i]); };
-}
-async function race(n = 24) {
-  run++; reset(); const toks = Array.from({ length: n }, () => Math.floor(Math.random() * V)), ref = refModel();
-  stats = { frames: 0, released: 0 }; const got = [];
-  let t = performance.now(); for (const tk of toks) { got.push(await step(tk, 0)); await frame(); } const layMs = (performance.now() - t) / n;
-  const refs = toks.map(tk => ref(tk));
-  t = performance.now(); let k = 0; while (performance.now() - t < 300) { const r = refModel(); for (let i = 0; i < 4; i++) r(toks[i]); k += 4; } const jsMs = (performance.now() - t) / k;
-  let err = 0, agree = 0;
-  refs.forEach((r, i) => { const top = r.indexOf(Math.max(...r)); got[i].scores.forEach((px, o) => { if (px > 0) err = Math.max(err, Math.abs(px / 1024 - B - r[o])); }); if (got[i].win === top) agree++; });
-  reset(); return { layoutMs: layMs, jsMs, slower: layMs / jsMs, maxScoreError: +err.toFixed(4), sameTopPiece: `${agree} of ${n}`, ...stats, boxes };
-}
-window.__t = { step, reset, refModel, M, obs, frame };
-window.selfTest = async n => { const r = await race(n); console.log(r); return r; };
-$('race').addEventListener('click', async e => { e.target.disabled = true; e.target.textContent = 'Racing…'; const r = await race(24);
-  $('r-lay').textContent = r.layoutMs.toFixed(0) + ' ms'; $('r-js').textContent = (r.jsMs * 1000).toFixed(0) + ' µs'; $('r-x').textContent = Math.round(r.slower).toLocaleString() + '×'; $('r-ok').textContent = `${r.sameTopPiece.replace(' of ', '/')} · ${r.maxScoreError.toFixed(3)}`;
-  $('say-acc').textContent = `Here the boxes picked the same piece as plain JavaScript in ${r.sameTopPiece} steps, with scores within ${r.maxScoreError.toFixed(3)}, at ${r.layoutMs.toFixed(0)} ms a piece against ${(r.jsMs * 1000).toFixed(0)} µs.`;
-  e.target.disabled = false; e.target.textContent = 'Race again'; });
+      // ---- THE CHECKER. Everything below is ordinary JavaScript arithmetic, run only in the race.
+      function refModel() {
+        const K = [...Array(W)].map(() => new Float64Array(D)),
+          Vv = [...Array(W)].map(() => new Float64Array(D)),
+          used = new Array(W).fill(false);
+        let t = 0;
+        const mv = (Mx, x) => Mx.map(r => r.reduce((a, w, i) => a + w * x[i], 0));
+        return tok => {
+          const x = M.emb[tok],
+            c = M.trig[t % P];
+          let q = mv(M.q, x),
+            k = mv(M.k, x);
+          const v = mv(M.v, x);
+          const rot = a => {
+            const o = [...a];
+            for (let h = 0; h < H; h++)
+              for (let j = 0; j < J; j++) {
+                const i = h * HD + 2 * j,
+                  [cs, sn] = c[j];
+                o[i] = a[i] * cs - a[i + 1] * sn;
+                o[i + 1] = a[i] * sn + a[i + 1] * cs;
+              }
+            return o;
+          };
+          q = rot(q);
+          k = rot(k);
+          const r = t % W;
+          K[r].set(k);
+          Vv[r].set(v);
+          used[r] = true;
+          t++;
+          const at = new Array(D).fill(0);
+          for (let h = 0; h < H; h++) {
+            const s = K.map((kk, j) =>
+                used[j]
+                  ? Math.max(
+                      0,
+                      q.slice(h * HD, h * HD + HD).reduce((a, qv, d) => a + qv * kk[h * HD + d], 0),
+                    )
+                  : 0,
+              ),
+              z = 1 + s.reduce((a, b) => a + b, 0);
+            for (let d = 0; d < HD; d++) at[h * HD + d] = s.reduce((a, sv, j) => a + (sv / z) * Vv[j][h * HD + d], 0);
+          }
+          const h1 = x.map((xv, i) => xv + mv(M.o, at)[i]);
+          const f = mv(M.f1, h1).map((v, i) => Math.max(0, v + M.f1b[i]));
+          const h2 = h1.map((hv, i) => hv + mv(M.f2, f)[i] + M.f2b[i]);
+          return mv(M.head, h2).map((v, i) => v + M.headb[i]);
+        };
+      }
+      async function race(n = 24) {
+        run++;
+        reset();
+        const toks = Array.from({ length: n }, () => Math.floor(Math.random() * V)),
+          ref = refModel();
+        stats = { frames: 0, released: 0 };
+        const got = [];
+        let t = performance.now();
+        for (const tk of toks) {
+          got.push(await step(tk, 0));
+          await frame();
+        }
+        const layMs = (performance.now() - t) / n;
+        const refs = toks.map(tk => ref(tk));
+        t = performance.now();
+        let k = 0;
+        while (performance.now() - t < 300) {
+          const r = refModel();
+          for (let i = 0; i < 4; i++) r(toks[i]);
+          k += 4;
+        }
+        const jsMs = (performance.now() - t) / k;
+        let err = 0,
+          agree = 0;
+        refs.forEach((r, i) => {
+          const top = r.indexOf(Math.max(...r));
+          got[i].scores.forEach((px, o) => {
+            if (px > 0) err = Math.max(err, Math.abs(px / 1024 - B - r[o]));
+          });
+          if (got[i].win === top) agree++;
+        });
+        reset();
+        return {
+          layoutMs: layMs,
+          jsMs,
+          slower: layMs / jsMs,
+          maxScoreError: +err.toFixed(4),
+          sameTopPiece: `${agree} of ${n}`,
+          ...stats,
+          boxes,
+        };
+      }
+      window.__t = { step, reset, refModel, M, obs, frame };
+      window.selfTest = async n => {
+        const r = await race(n);
+        console.log(r);
+        return r;
+      };
+      $('race').addEventListener('click', async e => {
+        e.target.disabled = true;
+        e.target.textContent = 'Racing…';
+        const r = await race(24);
+        $('r-lay').textContent = r.layoutMs.toFixed(0) + ' ms';
+        $('r-js').textContent = (r.jsMs * 1000).toFixed(0) + ' µs';
+        $('r-x').textContent = Math.round(r.slower).toLocaleString() + '×';
+        $('r-ok').textContent = `${r.sameTopPiece.replace(' of ', '/')} · ${r.maxScoreError.toFixed(3)}`;
+        $('say-acc').textContent =
+          `Here the boxes picked the same piece as plain JavaScript in ${r.sameTopPiece} steps, with scores within ${r.maxScoreError.toFixed(3)}, at ${r.layoutMs.toFixed(0)} ms a piece against ${(r.jsMs * 1000).toFixed(0)} µs.`;
+        e.target.disabled = false;
+        e.target.textContent = 'Race again';
+      });
 
-reset(); await frame(); await frame();
-$('go').disabled = false; $('go').textContent = 'Generate'; $('race').disabled = false; $('stat').textContent = `Ready. ${boxes.toLocaleString()} boxes.`;
-</script>
-</body>
+      reset();
+      await frame();
+      await frame();
+      $('go').disabled = false;
+      $('go').textContent = 'Generate';
+      $('race').disabled = false;
+      $('stat').textContent = `Ready. ${boxes.toLocaleString()} boxes.`;
+    </script>
+  </body>
 </html>

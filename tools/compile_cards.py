@@ -45,26 +45,27 @@ In the browser every multiply and add is the transform engine's.
 The template's placeholders get filled in: /*CSS*/ (the generated stylesheet), /*VOCAB*/, /*META*/ (sizes and
 stats the page shows) and <!--EXCERPT--> (real lines from the stylesheet, shown on the page).
 """
+
 import html
 import json
 import sys
 
 m = json.load(open(sys.argv[1]))
-V, CTX, E, H = len(m['vocab']), m['ctx'], m['E'], m['H']
+V, CTX, E, H = len(m["vocab"]), m["ctx"], m["E"], m["H"]
 
 # Two neurons per card, so 37 logits is padded to 38. The spare one has zero weights and is never read.
 Vp = V + V % 2
-m['W2'] = [row + [0.0] * (Vp - V) for row in m['W2']]
-m['b2'] = m['b2'] + [0.0] * (Vp - V)
+m["W2"] = [row + [0.0] * (Vp - V) for row in m["W2"]]
+m["b2"] = m["b2"] + [0.0] * (Vp - V)
 
 
-Q = 10 ** 6   # weights are rounded to 6 decimal places before the differences are taken (see card())
+Q = 10**6  # weights are rounded to 6 decimal places before the differences are taken (see card())
 
 
 def f(n):
     """An integer count of millionths as short CSS text: 123456 -> .123456, -2500000 -> -2.5"""
-    s = f'{abs(n) // Q}.{abs(n) % Q:06d}'.rstrip('0').rstrip('.').removeprefix('0') or '0'
-    return '-' + s if n < 0 and s != '0' else s
+    s = f"{abs(n) // Q}.{abs(n) % Q:06d}".rstrip("0").rstrip(".").removeprefix("0") or "0"
+    return "-" + s if n < 0 and s != "0" else s
 
 
 def q(x):
@@ -82,65 +83,97 @@ def card(inputs, W, b, j):
     """
     # w[k] is the pair of weights input k needs; k = 0 is the bias, whose input is the constant 1.
     w = [(q(b[2 * j]), q(b[2 * j + 1]))] + [(q(W[k][2 * j]), q(W[k][2 * j + 1])) for k in range(len(inputs))]
-    a = ['1'] + inputs + ['0']
+    a = ["1"] + inputs + ["0"]
     pq = [(-w[0][0], -w[0][1])]
     pq += [(w[k][0] - w[k + 1][0], w[k][1] - w[k + 1][1]) for k in range(len(w) - 1)]
     pq += [w[-1]]
     #                 column x        column y        column z  column w
-    return [f'matrix3d(1,0,0,{f(p)},0,1,0,{f(r)},0,0,1,0,0,0,{x},1)' for x, (p, r) in zip(a, pq)]
+    return [f"matrix3d(1,0,0,{f(p)},0,1,0,{f(r)},0,0,1,0,0,0,{x},1)" for x, (p, r) in zip(a, pq)]
 
 
 def layer(sel, inputs, W, b, n_out, name):
     """One rule per card: `sel i:nth-child(j+1) { transform: ...; }`."""
-    out = [f'/* ---- {name}: {len(inputs)} inputs -> {n_out} outputs on {n_out // 2} cards,',
-           f'     {len(inputs) + 2} matrices per card. ---- */']
+    out = [
+        f"/* ---- {name}: {len(inputs)} inputs -> {n_out} outputs on {n_out // 2} cards,",
+        f"     {len(inputs) + 2} matrices per card. ---- */",
+    ]
     for j in range(n_out // 2):
         fns = card(inputs, W, b, j)
-        out.append(f'{sel} i:nth-child({j + 1}) {{ /* outputs {2 * j} and {2 * j + 1} */\n  transform:\n    '
-                   + '\n    '.join(fns) + ';\n}')
+        out.append(
+            f"{sel} i:nth-child({j + 1}) {{ /* outputs {2 * j} and {2 * j + 1} */\n  transform:\n    "
+            + "\n    ".join(fns)
+            + ";\n}"
+        )
     return out
 
 
 # 1. Embedding lookup as class selectors, same as css/. The script puts e.g. "s3t12" on #m ("token 12 at
 #    position 3") and this rule writes that token's 9 embedding numbers into the 9 inputs for position 3.
-emb = ['/* ===== 1. Embedding table. .s{position}t{token} sets the 9 inputs for one position. ===== */']
+emb = ["/* ===== 1. Embedding table. .s{position}t{token} sets the 9 inputs for one position. ===== */"]
 for s in range(CTX):
-    emb.append(f'\n/* position {s}: --x{s * E} .. --x{s * E + E - 1} */')
+    emb.append(f"\n/* position {s}: --x{s * E} .. --x{s * E + E - 1} */")
     for t in range(V):
-        decls = ' '.join(f'--x{s * E + k}:{f(q(m["emb"][t][k]))};' for k in range(E))
-        emb.append(f'.s{s}t{t} {{ {decls} }} /* {json.dumps(m["vocab"][t])} */')
+        decls = " ".join(f"--x{s * E + k}:{f(q(m['emb'][t][k]))};" for k in range(E))
+        emb.append(f".s{s}t{t} {{ {decls} }} /* {json.dumps(m['vocab'][t])} */")
 
 # 2. Layer 1: the inputs are the --x variables set by the class rules above.
-l1 = ['/* ===== 2. Layer 1. Each card multiplies its list out; the tilt it ends up with is two neurons. ===== */']
-l1 += layer('#w1', [f'var(--x{k})' for k in range(CTX * E)], m['W1'], m['b1'], H, 'Layer 1')
+l1 = ["/* ===== 2. Layer 1. Each card multiplies its list out; the tilt it ends up with is two neurons. ===== */"]
+l1 += layer("#w1", [f"var(--x{k})" for k in range(CTX * E)], m["W1"], m["b1"], H, "Layer 1")
 
 # 3. Layer 2: the inputs are the --h variables the script copies over from the layer 1 cards. The ReLU is the
 #    max(0, ...) around each one. That is CSS maths, but not the transform engine.
-l2 = ['/* ===== 3. Layer 2. Inputs are layer 1 tilts, copied into --h variables by the script. The ReLU is',
-      '          the max(0, ...) on the way in. ===== */']
-l2 += layer('#w2', [f'max(0,var(--h{k}))' for k in range(H)], m['W2'], m['b2'], Vp, 'Layer 2 (logits)')
+l2 = [
+    "/* ===== 3. Layer 2. Inputs are layer 1 tilts, copied into --h variables by the script. The ReLU is",
+    "          the max(0, ...) on the way in. ===== */",
+]
+l2 += layer("#w2", [f"max(0,var(--h{k}))" for k in range(H)], m["W2"], m["b2"], Vp, "Layer 2 (logits)")
 
-css = '\n'.join(['', '/* ============ Everything below is generated by tools/compile_cards.py. ============ */', '']
-                + emb + [''] + l1 + [''] + l2) + '\n'
+css = (
+    "\n".join(
+        ["", "/* ============ Everything below is generated by tools/compile_cards.py. ============ */", ""]
+        + emb
+        + [""]
+        + l1
+        + [""]
+        + l2
+    )
+    + "\n"
+)
 
 # Real lines for the "what the compiled stylesheet looks like" box on the page.
-first = l1[3].split('\n')
-last2 = l2[4].split('\n')
-excerpt = ('/* token 12 at position 0 sets nine inputs */\n' + emb[2 + 12] +
-           '\n\n/* the first card of layer 1: 74 matrices, of which the first four and the last are */\n'
-           + '\n'.join(first[:6]) + '\n    …\n' + '\n'.join(first[-2:]) +
-           '\n\n/* the first card of layer 2 starts like this */\n' + '\n'.join(last2[:4]) + '\n    …')
+first = l1[3].split("\n")
+last2 = l2[4].split("\n")
+excerpt = (
+    "/* token 12 at position 0 sets nine inputs */\n"
+    + emb[2 + 12]
+    + "\n\n/* the first card of layer 1: 74 matrices, of which the first four and the last are */\n"
+    + "\n".join(first[:6])
+    + "\n    …\n"
+    + "\n".join(first[-2:])
+    + "\n\n/* the first card of layer 2 starts like this */\n"
+    + "\n".join(last2[:4])
+    + "\n    …"
+)
 
-n_mat = css.count('matrix3d(')
-stats = {'embRules': V * CTX, 'cards1': H // 2, 'cards2': Vp // 2, 'per1': CTX * E + 2, 'per2': H + 2,
-         'matrices': n_mat, 'cssKB': round(len(css) / 1e3),
-         'weights': V * E + CTX * E * H + H + H * V + V}
-stats['bytesPerWeight'] = round(len(css) / stats['weights'])
+n_mat = css.count("matrix3d(")
+stats = {
+    "embRules": V * CTX,
+    "cards1": H // 2,
+    "cards2": Vp // 2,
+    "per1": CTX * E + 2,
+    "per2": H + 2,
+    "matrices": n_mat,
+    "cssKB": round(len(css) / 1e3),
+    "weights": V * E + CTX * E * H + H + H * V + V,
+}
+stats["bytesPerWeight"] = round(len(css) / stats["weights"])
 
 tpl = open(sys.argv[2]).read()
-out = (tpl.replace('/*CSS*/', css)
-          .replace('/*VOCAB*/', json.dumps(''.join(m['vocab'])))
-          .replace('/*META*/', json.dumps({'ctx': CTX, 'H': H, **stats}))
-          .replace('<!--EXCERPT-->', html.escape(excerpt)))
-open(sys.argv[3], 'w').write(out)
-print(f'{len(out) / 1e3:.0f} KB, {len(css) / 1e3:.0f} KB css, {n_mat} matrices')
+out = (
+    tpl.replace("/*CSS*/", css)
+    .replace("/*VOCAB*/ null", json.dumps("".join(m["vocab"])))
+    .replace("/*META*/ null", json.dumps({"ctx": CTX, "H": H, **stats}))
+    .replace("<!--EXCERPT-->", html.escape(excerpt))
+)
+open(sys.argv[3], "w").write(out)
+print(f"{len(out) / 1e3:.0f} KB, {len(css) / 1e3:.0f} KB css, {n_mat} matrices")

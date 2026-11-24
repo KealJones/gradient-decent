@@ -1,56 +1,200 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gradient Decent</title>
-<meta name="description" content="Language models run by the parts of a browser that were built for drawing and styling, not maths: canvas blend modes, CSS colours and whatever else can be made to multiply.">
-<link rel="stylesheet" href="lib/page.css?v=6">
-<style>
-  .cards { display:grid; grid-template-columns:repeat(auto-fit, minmax(270px, 1fr)); gap:14px }
-  .card { display:flex; flex-direction:column; gap:6px; border:1px solid var(--line); border-radius:10px; padding:18px; background:var(--panel); text-decoration:none }
-  .card:hover { border-color:#55555f }
-  .card .tag { align-self:flex-start }
-  .card b { font-size:18px; font-weight:600 }
-  .card p { color:var(--dim); font-size:14px; margin:0 }
-  .card .facts { font-size:12px; color:var(--dim); margin-top:auto; padding-top:8px; border-top:1px solid var(--line) }
-  .tag.other { background:#b9b4a8 }
-  .tag.filter { background:#c9a2ff } .tag.layout { background:#ff9ecb }
-  .tag.audio { background:#8fb4ff }
-</style>
-</head>
-<body>
-<main>
-  <h1><span>Gradient Decent</span></h1>
-  <p class="lede">Small neural networks, mostly language models, run by the parts of a browser that were built for drawing and styling, not for maths. Canvas blend modes, CSS colours and transforms, SVG filters, the audio engine, and whatever else turns out to be able to multiply.</p>
-  <p class="answer">The name is the joke. Gradient descent is how a model gets trained. No page here trains anything and nothing descends: they only run models, and they do it with actual colours and gradients. So it's gradient, and it's decent.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Gradient Decent</title>
+    <meta
+      name="description"
+      content="Small neural networks run by parts of the browser that were never meant for maths: page layout, canvas blend modes, CSS colours and transforms, Web Audio and SVG filters. Slow, goofy, and checked against plain JavaScript."
+    />
+    <link rel="stylesheet" href="lib/page.css?v=6" />
+    <style>
+      /* The grid of experiment cards; each tag colour names the browser feature doing the maths. */
+      .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+        gap: 14px;
+      }
+      .card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 18px;
+        background: var(--panel);
+        text-decoration: none;
+      }
+      .card:hover {
+        border-color: #55555f;
+      }
+      .card .tag {
+        align-self: flex-start;
+      }
+      .card b {
+        font-size: 18px;
+        font-weight: 600;
+      }
+      .card p {
+        color: var(--dim);
+        font-size: 14px;
+        margin: 0;
+      }
+      .card .facts {
+        font-size: 12px;
+        color: var(--dim);
+        margin-top: auto;
+        padding-top: 8px;
+        border-top: 1px solid var(--line);
+      }
+      .tag.other {
+        background: #b9b4a8;
+      }
+      .tag.filter {
+        background: #c9a2ff;
+      }
+      .tag.layout {
+        background: #ff9ecb;
+      }
+      .tag.audio {
+        background: #8fb4ff;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1><span>Gradient Decent</span></h1>
+      <p class="lede">
+        Parts of the browser that were built for drawing and styling, used as accidental calculators to run small neural
+        networks: the page layout engine, canvas blend modes, CSS colour maths and 3D transforms, the Web Audio graph
+        and an SVG filter. None of it is useful and all of it is slow. The point was to see whether it could be done at
+        all, and then to check that it gets the right answer.
+      </p>
+      <p class="answer">
+        The name is the joke. Gradient descent is how models get trained. Nothing on these pages trains anything (the
+        few models made for this were trained ahead of time, in a script, the normal way): they only run models, using
+        actual colours and gradients. So it's gradient, and it's decent.
+      </p>
 
-  <section>
-    <h2 class="big">The experiments</h2>
-    <p class="section-lede">Each page runs a real model, shows the browser feature doing the work, explains it step by step, and races it against a plain JavaScript loop so you can see what the trick costs.</p>
-    <div class="cards">
-      <a class="card" href="chat/"><span class="tag canvas">Canvas</span><b>Can a 2D canvas hold a conversation?</b><p>A chat model that talks like a three-year-old and remembers the conversation. The weights are pictures and the multiply is a blend mode.</p><span class="facts">1.8M weights · about 15 tokens a second</span></a>
-      <a class="card" href="stories/"><span class="tag canvas">Canvas</span><b>Can blend modes write a story?</b><p>A ternary-weight model that writes wobbly children's stories. Every weight is a red, green or black pixel.</p><span class="facts">1M weights · 20 to 30 tokens a second</span></a>
-      <a class="card" href="css/"><span class="tag css">CSS</span><b>Can a stylesheet run a language model?</b><p>A Shakespeare babbler whose whole forward pass is CSS colour maths: <code>color-mix()</code> sums and relative-colour multiplies.</p><span class="facts">21K weights · about 31 ms a character</span></a>
-      <a class="card" href="no-js/"><span class="tag css">CSS, no script</span><b>Can a page with no script write by itself?</b><p>The same Shakespeare babbler with the JavaScript taken out. The clock, the memory, the dice and the text are all CSS.</p><span class="facts">21K weights · a little under one character a second · Chrome and Edge only</span></a>
-      <a class="card" href="cards/"><span class="tag css">CSS</span><b>Can CSS transforms multiply matrices?</b><p>The same Shakespeare babbler as a wall of tilting cards. Every neuron is a long list of <code>matrix3d()</code> functions and the answer is how far its card tips.</p><span class="facts">21K weights · 50 to 90 ms a character</span></a>
-      <a class="card" href="audio/"><span class="tag audio">Audio</span><b>Can you listen to a model think?</b><p>The same Shakespeare babbler as a Web Audio graph. The weights are a sound file, each layer is a convolution reverb and ReLU is a distortion curve.</p><span class="facts">21K weights · 10 to 45 ms a character</span></a>
-      <a class="card" href="filter/"><span class="tag filter">SVG filter</span><b>Can a photo filter read handwriting?</b><p>Not a language model: a digit reader. Draw a digit and one SVG <code>&lt;filter&gt;</code> runs the whole network, with <code>feConvolveMatrix</code> for the layers and <code>feMorphology</code> for the max pooling.</p><span class="facts">10K weights · about 6 ms a digit</span></a>
-      <a class="card" href="layout/"><span class="tag layout">Layout</span><b>Can page layout run a language model?</b><p>The same Shakespeare babbler with no arithmetic written anywhere. Every number is the size of a box: <code>aspect-ratio</code> multiplies, flex rows add, leftover space subtracts and clamps, and a staircase of floats rolls the dice.</p><span class="facts">21K weights · 45,000 boxes · about 670 ms a character</span></a>
-      <a class="card" href="lorem/"><span class="tag layout">Layout</span><b>Can page layout write lorem ipsum?</b><p>A little attention model trained on Cicero, the book lorem ipsum was cut from, run by layout: rotations are box shapes, attention shares are <code>flex-grow</code>, and two live numbers multiply with <code>cqw</code>. The filler gets typeset into a fake magazine.</p><span class="facts">31K weights · 66,000 boxes · about half a second a word piece</span></a>
-    </div>
-  </section>
+      <section>
+        <h2 class="big">The experiments</h2>
+        <p class="section-lede">
+          Each page runs a real model, shows the browser feature doing the work, walks through how it works, and races
+          it against a plain JavaScript copy of the same model so you can check the answers and see what the trick
+          costs. Speeds are from headless Chrome on a modest test machine.
+        </p>
+        <div class="cards">
+          <a class="card" href="lorem/">
+            <span class="tag layout">Layout</span>
+            <b>Can page layout write lorem ipsum?</b>
+            <p>
+              You always pour lorem ipsum into a page layout. This page layout writes its own. A small attention model
+              trained on Cicero, the book lorem ipsum was cut from, where every multiply, sum and pick is the size of a
+              box. What it writes gets typeset into a fake magazine.
+            </p>
+            <span class="facts">31K weights · 66,000 boxes · about 0.6 s a word piece</span>
+          </a>
+          <a class="card" href="layout/">
+            <span class="tag layout">Layout</span>
+            <b>Can page layout run a language model?</b>
+            <p>
+              A tiny Shakespeare babbler where every number is the size of a box: <code>aspect-ratio</code> multiplies,
+              rows of boxes add, leftover space subtracts, and the longest bar in a grid column is the next letter.
+            </p>
+            <span class="facts">21K weights · 45,000 boxes · about 0.7 s a character</span>
+          </a>
+          <a class="card" href="chat/">
+            <span class="tag canvas">Canvas</span>
+            <b>Can a 2D canvas hold a conversation?</b>
+            <p>
+              A chat model that talks like a three-year-old. The weights are pictures and every matrix multiply is a
+              blend mode.
+            </p>
+            <span class="facts">1.8M weights · about 15 tokens a second</span>
+          </a>
+          <a class="card" href="stories/">
+            <span class="tag canvas">Canvas</span>
+            <b>Can blend modes write a story?</b>
+            <p>
+              A model that writes wobbly children's stories. Its weights are only ever -1, 0 or 1, so every weight is a
+              red, green or black pixel.
+            </p>
+            <span class="facts">1M weights · 20 to 30 tokens a second</span>
+          </a>
+          <a class="card" href="css/">
+            <span class="tag css">CSS</span>
+            <b>Can a stylesheet run a language model?</b>
+            <p>
+              The Shakespeare babbler's whole forward pass as CSS colour maths: <code>color-mix()</code> adds and
+              relative colours multiply.
+            </p>
+            <span class="facts">21K weights · about 40 ms a character</span>
+          </a>
+          <a class="card" href="no-js/">
+            <span class="tag css">CSS, no script</span>
+            <b>Can a page with no script write by itself?</b>
+            <p>The same babbler with the JavaScript taken out. The clock, the memory, the dice and the text are CSS.</p>
+            <span class="facts">21K weights · a little under one character a second · Chrome and Edge only</span>
+          </a>
+          <a class="card" href="cards/">
+            <span class="tag css">CSS</span>
+            <b>Can CSS transforms multiply matrices?</b>
+            <p>
+              The babbler as a wall of tilting cards. Every neuron is a long chain of
+              <code>matrix3d()</code> transforms, and the answer is how far its card tips.
+            </p>
+            <span class="facts">21K weights · about 40 ms a character</span>
+          </a>
+          <a class="card" href="audio/">
+            <span class="tag audio">Audio</span>
+            <b>Can you listen to a model think?</b>
+            <p>
+              The babbler as a Web Audio graph. The weights are a sound file, each layer is a convolution reverb and the
+              activation is a distortion curve.
+            </p>
+            <span class="facts">21K weights · about 13 ms a character</span>
+          </a>
+          <a class="card" href="filter/">
+            <span class="tag filter">SVG filter</span>
+            <b>Can a photo filter read handwriting?</b>
+            <p>
+              Not a language model: a digit reader. Draw a digit and a single SVG <code>&lt;filter&gt;</code> runs the
+              whole network, with <code>feConvolveMatrix</code> for the layers and <code>feMorphology</code> for the
+              pooling.
+            </p>
+            <span class="facts">10K weights · about 7 ms a digit</span>
+          </a>
+        </div>
+      </section>
 
-  <section>
-    <h2 class="big">The rules</h2>
-    <ul class="says">
-      <li><strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour function, a transform, a reverb, a layout pass, a gradient. Not WebGPU, WebGL or WASM, which is how everyone else does it.</li>
-      <li><strong>JavaScript is allowed for the bookkeeping.</strong> Every page says exactly which steps are script and which aren't.</li>
-      <li><strong>It has to be a real model and it has to be right.</strong> Each one is checked against an ordinary implementation of the same weights, and the page lets you rerun that check.</li>
-      <li><strong>It doesn't have to be fast.</strong> It won't be. Each page says how slow.</li>
-      <li><strong>It doesn't have to work everywhere.</strong> These lean on the newest corners of the browser, and so far they have only been checked in Chrome. Each page lists what it needs.</li>
-    </ul>
-  </section>
-</main>
-</body>
+      <section>
+        <h2 class="big">The rules</h2>
+        <ul class="says">
+          <li>
+            <strong>The maths has to be done by something that wasn't meant for it.</strong> A blend mode, a colour
+            function, a transform, a reverb, a layout pass, a filter. Not WebGPU, WebGL or WASM, which is how everyone
+            else does it.
+          </li>
+          <li>
+            <strong>JavaScript is allowed for the bookkeeping.</strong> Every page says exactly which steps are script
+            and which aren't, and the page source is commented so you can check.
+          </li>
+          <li>
+            <strong>It has to be a real model and it has to be right.</strong> Each one is checked against an ordinary
+            implementation of the same weights, and the page lets you rerun that check.
+          </li>
+          <li><strong>It doesn't have to be fast.</strong> It won't be. Each page says how slow.</li>
+          <li>
+            <strong>It doesn't have to work everywhere.</strong> These lean on the newest corners of the browser. They
+            are tested in Chrome; the lorem page also runs in Safari on iOS, and the no-script page needs Chrome or
+            Edge. Each page lists what it needs.
+          </li>
+        </ul>
+        <p class="note">
+          Code: <a href="https://github.com/KealJones/gradient-decent">github.com/KealJones/gradient-decent</a>
+        </p>
+      </section>
+    </main>
+  </body>
 </html>

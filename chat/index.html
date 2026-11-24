@@ -1,229 +1,715 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Chat · Gradient Decent</title>
-<meta name="description" content="A 1.8-million-weight chat model whose matrix multiplies are done by blending colours on a 2D canvas.">
-<link rel="stylesheet" href="../lib/page.css?v=6">
-<style>
-  #log { min-height:180px; max-height:40vh; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:14px; background:var(--bg); display:flex; flex-direction:column; gap:8px; margin-bottom:12px }
-  .msg { max-width:80%; padding:8px 12px; border-radius:12px; font:17px/1.45 Georgia, "Iowan Old Style", serif; white-space:pre-wrap; overflow-wrap:anywhere }
-  .msg.a { align-self:flex-end; background:#26262d }
-  .msg.b { align-self:flex-start; background:#1b2a22; border:1px solid #244a36 }
-  .msg.b:empty::after { content:"…"; color:var(--dim) }
-  .hint { color:var(--dim); font-size:13px; align-self:center; margin:auto 0 }
-  /* The token picker. Boxes must have no padding, border or minimum width, or their widths stop being probabilities. */
-  .pick-h { margin:0 0 8px }
-  .pick { position:relative; height:44px; margin-bottom:12px; border:1px solid var(--line); border-radius:6px; overflow:hidden; background:var(--bg) }
-  .pick-row { display:flex; height:100% }
-  .pick-box { flex:0 1 0; min-width:0; overflow:hidden; white-space:pre; text-align:center; font-size:12px; line-height:44px; background:#26262d; box-shadow:inset -1px 0 0 var(--bg); container-type:inline-size }
-  .pick-box span { pointer-events:none }
-  @container (max-width:30px) { .pick-box span { visibility:hidden } }   /* no room for a label */
-  .pick-box.hit { background:var(--cool); color:#111 }
-  .pick-crop, .pick-shade, .pick-win { position:absolute; top:0; bottom:0; pointer-events:none }
-  .pick-crop { left:80%; border-left:1px dashed var(--dim) }
-  .pick-shade { left:100%; right:0; background:rgba(13,13,16,.72) }
-  .pick-win { left:0 }
-  .pick-needle { position:absolute; top:0; bottom:0; border-left:2px solid var(--hot) }
-</style>
-</head>
-<body>
-<main>
-<p class="crumb"><a href="../">Gradient Decent</a> / chat</p>
-<h1><span>Can a 2D canvas hold a conversation?</span></h1>
-<p class="lede">A 1.8-million-weight chat model, <a href="https://huggingface.co/raincandy-u/TinyChat-1776K">TinyChat-1776K</a>, where every matrix multiply is done by blending colours on a 2D canvas. The weights are pictures, the multiply is a blend mode, the sum is an image being squashed and the activation function is a gradient. No WebGPU, no WebGL, no WASM.</p>
-<p class="answer">Yes, and it gets the maths right: on a 136-token test conversation it picks the same next token as the original model in Hugging Face transformers at every position. The odd answers are the model's fault, not the canvas's. It was trained on conversations at a three-year-old's level and knows nothing about the world. A plain JavaScript loop is still much faster; the race below measures by how much on your machine.</p>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Chat · Gradient Decent</title>
+    <meta
+      name="description"
+      content="A 1.8-million-weight chat model whose matrix multiplies are done by blending colours on a 2D canvas."
+    />
+    <link rel="stylesheet" href="../lib/page.css?v=6" />
+    <style>
+      #log {
+        min-height: 180px;
+        max-height: 40vh;
+        overflow-y: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 14px;
+        background: var(--bg);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 12px;
+      }
+      .msg {
+        max-width: 80%;
+        padding: 8px 12px;
+        border-radius: 12px;
+        font:
+          17px/1.45 Georgia,
+          'Iowan Old Style',
+          serif;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .msg.a {
+        align-self: flex-end;
+        background: #26262d;
+      }
+      .msg.b {
+        align-self: flex-start;
+        background: #1b2a22;
+        border: 1px solid #244a36;
+      }
+      .msg.b:empty::after {
+        content: '…';
+        color: var(--dim);
+      }
+      .hint {
+        color: var(--dim);
+        font-size: 13px;
+        align-self: center;
+        margin: auto 0;
+      }
+      /* The token picker. Boxes must have no padding, border or minimum width, or their widths stop being probabilities. */
+      .pick-h {
+        margin: 0 0 8px;
+      }
+      .pick {
+        position: relative;
+        height: 44px;
+        margin-bottom: 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        overflow: hidden;
+        background: var(--bg);
+      }
+      .pick-row {
+        display: flex;
+        height: 100%;
+      }
+      .pick-box {
+        flex: 0 1 0;
+        min-width: 0;
+        overflow: hidden;
+        white-space: pre;
+        text-align: center;
+        font-size: 12px;
+        line-height: 44px;
+        background: #26262d;
+        box-shadow: inset -1px 0 0 var(--bg);
+        container-type: inline-size;
+      }
+      .pick-box span {
+        pointer-events: none;
+      }
+      @container (max-width:30px) {
+        .pick-box span {
+          visibility: hidden;
+        }
+      } /* no room for a label */
+      .pick-box.hit {
+        background: var(--cool);
+        color: #111;
+      }
+      .pick-crop,
+      .pick-shade,
+      .pick-win {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        pointer-events: none;
+      }
+      .pick-crop {
+        left: 80%;
+        border-left: 1px dashed var(--dim);
+      }
+      .pick-shade {
+        left: 100%;
+        right: 0;
+        background: rgba(13, 13, 16, 0.72);
+      }
+      .pick-win {
+        left: 0;
+      }
+      .pick-needle {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        border-left: 2px solid var(--hot);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p class="crumb"><a href="../">Gradient Decent</a> / chat</p>
+      <h1><span>Can a 2D canvas hold a conversation?</span></h1>
+      <p class="lede">
+        A 2D canvas, the browser's drawing surface, used as a calculator to hold a conversation. It runs
+        <a href="https://huggingface.co/raincandy-u/TinyChat-1776K">TinyChat-1776K</a>, a 1.8-million-weight chat model.
+        The weights are pictures, every multiply is a blend mode, every sum is an image being squashed, the activation
+        function is a gradient, and page layout picks each next token. No WebGPU, no WebGL, no WASM, just a goofy way to
+        do the maths with tools that were built for pictures.
+      </p>
+      <p class="answer">
+        Yes, and it gets the maths right: on a 136-token test conversation it picks the same next token as the original
+        model in Hugging Face transformers at every position. The odd answers are the model's fault, not the canvas's.
+        It was trained on conversations at a three-year-old's level and knows nothing about the world. A plain
+        JavaScript loop is still much faster; the race below measures by how much on your machine.
+      </p>
 
-<section>
-<div class="bench">
-<h2 class="big">Run it</h2>
-<p class="section-lede">Ask it about cats, cake or its favourite colour. Don't ask it for facts. It keeps the whole conversation in mind for about 250 tokens.</p>
-<div class="cols">
-<div>
-<h2 class="pick-h">The next token, picked by page layout. Each box is as wide as that token is likely, and the needle lands on the one that gets said.</h2>
-<div id="pick" aria-hidden="true"></div>
-<div id="log" aria-live="polite"><div class="hint" id="hint">Loading the weight pictures</div></div>
-<form id="f">
-<input type="text" id="prompt" placeholder="Say something simple" aria-label="Message" autocomplete="off" maxlength="200">
-<button id="go" disabled>Send</button>
-<button id="reset" type="button" class="ghost" disabled>New chat</button>
-</form>
-<div id="stat"></div>
-</div>
-<div>
-<h2 style="margin-top:0">The activation function (SiLU), stored as a gradient. Red is positive, green is negative.</h2>
-<canvas id="lut" width="1024" height="1"></canvas>
-<h2>Every layer's weights multiplied by its current input, live.</h2>
-<div id="layers"></div>
-<h2>Rotary positions, turned by CSS <code>rotate</code>. One clock per frequency, at token position <span id="clockpos">0</span>.</h2>
-<div id="clocks"></div>
-<p class="note"><span class="swatch"></span>query pairs before, <span class="swatch q"></span>after, <span class="swatch k"></span>key pairs after. Under each clock: tokens per full turn.</p>
-</div>
-</div>
-<p class="note">The tiles aren't a visualisation added afterwards. Each one is the working canvas for that multiply, copied to the page. The clocks are the same: every coloured dot is the element whose position gets read back as the rotated numbers. They show the last layer's pairs.</p>
-</div>
-</section>
+      <section>
+        <div class="bench">
+          <h2 class="big">Run it</h2>
+          <p class="section-lede">
+            Ask it about cats, cake or its favourite colour. Don't ask it for facts. It keeps the whole conversation in
+            mind for about 250 tokens.
+          </p>
+          <div class="cols">
+            <div>
+              <h2 class="pick-h">
+                The next token, picked by page layout. Each box is as wide as that token is likely, and the needle lands
+                on the one that gets said.
+              </h2>
+              <div id="pick" aria-hidden="true"></div>
+              <div id="log" aria-live="polite"><div class="hint" id="hint">Loading the weight pictures</div></div>
+              <form id="f">
+                <input
+                  type="text"
+                  id="prompt"
+                  placeholder="Say something simple"
+                  aria-label="Message"
+                  autocomplete="off"
+                  maxlength="200"
+                />
+                <button id="go" disabled>Send</button>
+                <button id="reset" type="button" class="ghost" disabled>New chat</button>
+              </form>
+              <div id="stat"></div>
+            </div>
+            <div>
+              <h2 style="margin-top: 0">
+                The activation function (SiLU), stored as a gradient. Red is positive, green is negative.
+              </h2>
+              <canvas id="lut" width="1024" height="1"></canvas>
+              <h2>Every layer's weights multiplied by its current input, live.</h2>
+              <div id="layers"></div>
+              <h2>
+                Rotary positions, turned by CSS <code>rotate</code>. One clock per frequency, at token position
+                <span id="clockpos">0</span>.
+              </h2>
+              <div id="clocks"></div>
+              <p class="note">
+                <span class="swatch"></span>query pairs before, <span class="swatch q"></span>after,
+                <span class="swatch k"></span>key pairs after. Under each clock: tokens per full turn.
+              </p>
+            </div>
+          </div>
+          <p class="note">
+            The tiles aren't a visualisation added afterwards. Each one is the working canvas for that multiply, copied
+            to the page. The clocks are the same: every coloured dot is the element whose position gets read back as the
+            rotated numbers. They show the last layer's pairs.
+          </p>
+        </div>
+      </section>
 
-<section>
-<h2 class="big">Race it in your browser</h2>
-<p class="section-lede">Feeds the same run of tokens through both engines: the canvas with CSS turning the positions, and a plain JavaScript loop over the same weights read back out of the pictures. They should pick the same next token at every position.</p>
-<button id="race" class="ghost" type="button" disabled>Race the canvas against JavaScript</button>
-<div class="metrics">
-<div class="metric"><span>Canvas, per token</span><strong id="r-canvas">–</strong></div>
-<div class="metric"><span>JavaScript, per token</span><strong id="r-js">–</strong></div>
-<div class="metric"><span>Canvas is slower by</span><strong id="r-x">–</strong></div>
-<div class="metric"><span>Same top token / largest logit gap</span><strong id="r-ok">–</strong></div>
-</div>
-</section>
+      <section>
+        <h2 class="big">Race it in your browser</h2>
+        <p class="section-lede">
+          Feeds the same run of tokens through both engines: the canvas with CSS turning the positions, and a plain
+          JavaScript loop over the same weights read back out of the pictures. They should pick the same next token at
+          every position.
+        </p>
+        <button id="race" class="ghost" type="button" disabled>Race the canvas against JavaScript</button>
+        <div class="metrics">
+          <div class="metric"><span>Canvas, per token</span><strong id="r-canvas">–</strong></div>
+          <div class="metric"><span>JavaScript, per token</span><strong id="r-js">–</strong></div>
+          <div class="metric"><span>Canvas is slower by</span><strong id="r-x">–</strong></div>
+          <div class="metric"><span>Same top token / largest logit gap</span><strong id="r-ok">–</strong></div>
+        </div>
+      </section>
 
-<section>
-<h2 class="big">How one token gets made</h2>
-<p class="section-lede">22 matrix multiplies per token, every one of them on the canvas. The rotation that tells attention where each token sits is done by CSS transforms, and the page's layout engine picks the token. JavaScript does the bookkeeping around them.</p>
-<ol class="pipe">
-<li><span class="tag js">JS</span><div><b>Tokenise.</b><p>Your message is wrapped as <code>&lt;A&gt;your text &lt;end&gt;</code> followed by <code>&lt;B&gt;</code>, the model's turn, and cut into pieces with byte-pair encoding from a 2,048-piece vocabulary.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Embed and normalise.</b><p>Look up the token's row of numbers, then scale it so its average size is 1 (RMSNorm). This is the input vector for the layer.</p></div></li>
-<li><span class="tag canvas">Canvas</span><div><b>Multiply.</b><p>The input becomes a 2-pixel-tall strip of colours. It's stretched over the weight picture with the <code>multiply</code> blend mode, so every pixel becomes one weight times one input.</p></div></li>
-<li><span class="tag canvas">Canvas</span><div><b>Sum.</b><p>The product is drawn at half its width, again and again, with smoothing on. Each halving averages neighbouring pixels, so when a row is one pixel wide that pixel is the row's average, which is the sum divided by the width.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Read back.</b><p>One <code>getImageData</code> on a 1-pixel-wide column returns every output of the multiply at once. Red plus green from the top half, minus the same from the bottom half, times a scale.</p></div></li>
-<li><span class="tag css">CSS</span><div><b>Rotate for position.</b><p>Three of those multiplies give a query, a key and a value. The query and key are cut into pairs of numbers, and each pair is turned by an angle that grows with the token's position, at 6 different speeds (rotary position embeddings). Each pair is a zero-size element placed with <code>translate</code> inside an element with <code>rotate</code> set to that angle. Where <code>getBoundingClientRect()</code> says it ended up is the rotated pair.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Attention.</b><p>The rotated key and the value are cached. The query is compared with every cached key, the scores go through a softmax, and the values are mixed in those proportions. This is how it remembers earlier tokens.</p></div></li>
-<li><span class="tag canvas">Canvas</span><div><b>The gradient.</b><p>The feed-forward part needs SiLU, a smooth curve. It's stored as a canvas linear gradient with 1,025 colour stops, rendered once. Applying it is reading the colour at the right position, like an eyedropper.</p></div></li>
-<li><span class="tag js">JS</span><div><b>Repeat.</b><p>3 layers of seven multiplies each, then one more against the vocabulary picture to score every possible next token. The 40 highest scores go on to the next step.</p></div></li>
-<li><span class="tag layout">Layout</span><div><b>Pick by layout.</b><p>Each of the 40 becomes a box in one flex row with <code>flex-grow</code> set to <code>exp(score − best score)</code>. Flexbox shares the row out in those proportions, so each box's width is its probability: a softmax with no division in the script. Flex <code>order</code> sorts them, biggest first. The box under the dashed line at 80% is the last one kept (top-p 0.8). A needle goes to a random spot across the kept boxes, and <code>document.elementFromPoint</code> says which box it's on. That token is shown, and it's back to step 2.</p></div></li>
-</ol>
-<h3 class="sub3">What one multiply looks like</h3>
-<pre>strip.putImageData(input, 0, 0)                  // the vector, as a 2-pixel-tall strip
+      <section>
+        <h2 class="big">How one token gets made</h2>
+        <p class="section-lede">
+          22 matrix multiplies per token, every one of them on the canvas. The rotation that tells attention where each
+          token sits is done by CSS transforms, and the page's layout engine picks the token. JavaScript does the
+          bookkeeping around them.
+        </p>
+        <ol class="pipe">
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Tokenise.</b>
+              <p>
+                Your message is wrapped as <code>&lt;A&gt;your text &lt;end&gt;</code> followed by
+                <code>&lt;B&gt;</code>, the model's turn, and cut into pieces with byte-pair encoding from a 2,048-piece
+                vocabulary.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Embed and normalise.</b>
+              <p>
+                Look up the token's row of numbers, then scale it so its average size is 1 (RMSNorm). This is the input
+                vector for the layer.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag canvas">Canvas</span>
+            <div>
+              <b>Multiply.</b>
+              <p>
+                The input becomes a 2-pixel-tall strip of colours. It's stretched over the weight picture with the
+                <code>multiply</code> blend mode, so every pixel becomes one weight times one input.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag canvas">Canvas</span>
+            <div>
+              <b>Sum.</b>
+              <p>
+                The product is drawn at half its width, again and again, with smoothing on. Each halving averages
+                neighbouring pixels, so when a row is one pixel wide that pixel is the row's average, which is the sum
+                divided by the width.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Read back.</b>
+              <p>
+                One <code>getImageData</code> on a 1-pixel-wide column returns every output of the multiply at once. Red
+                plus green from the top half, minus the same from the bottom half, times a scale.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag css">CSS</span>
+            <div>
+              <b>Rotate for position.</b>
+              <p>
+                Three of those multiplies give a query, a key and a value. The query and key are cut into pairs of
+                numbers, and each pair is turned by an angle that grows with the token's position, at 6 different speeds
+                (rotary position embeddings). Each pair is a zero-size element placed with <code>translate</code> inside
+                an element with <code>rotate</code> set to that angle. Where <code>getBoundingClientRect()</code> says
+                it ended up is the rotated pair.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Attention.</b>
+              <p>
+                The rotated key and the value are cached. The query is compared with every cached key, the scores go
+                through a softmax, and the values are mixed in those proportions. This is how it remembers earlier
+                tokens.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag canvas">Canvas</span>
+            <div>
+              <b>The gradient.</b>
+              <p>
+                The feed-forward part needs SiLU, a smooth curve. It's stored as a canvas linear gradient with 1,025
+                colour stops, rendered once. Applying it is reading the colour at the right position, like an
+                eyedropper.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag js">JS</span>
+            <div>
+              <b>Repeat.</b>
+              <p>
+                3 layers of seven multiplies each, then one more against the vocabulary picture to score every possible
+                next token. The 40 highest scores go on to the next step.
+              </p>
+            </div>
+          </li>
+          <li>
+            <span class="tag layout">Layout</span>
+            <div>
+              <b>Pick by layout.</b>
+              <p>
+                Each of the 40 becomes a box in one flex row with <code>flex-grow</code> set to
+                <code>exp(score − best score)</code>. Flexbox shares the row out in those proportions, so each box's
+                width is its probability: a softmax with no division in the script. Flex <code>order</code> sorts them,
+                biggest first. The box under the dashed line at 80% is the last one kept (top-p 0.8). A needle goes to a
+                random spot across the kept boxes, and <code>document.elementFromPoint</code> says which box it's on.
+                That token is shown, and it's back to step 2.
+              </p>
+            </div>
+          </li>
+        </ol>
+        <h3 class="sub3">What one multiply looks like</h3>
+        <pre>
+strip.putImageData(input, 0, 0)                  // the vector, as a 2-pixel-tall strip
 work.globalCompositeOperation = 'copy'
 work.drawImage(weights, 0, 0)                    // the matrix, as a picture
 work.globalCompositeOperation = 'multiply'
 work.drawImage(strip, 0, 0, w, 2, 0, 0, w, h)    // every weight times its input, in one draw
 for (half of halvings) half.drawImage(prev, 0, 0, pw, h, 0, 0, pw / 2, h)   // sum by squashing
 answer = last.getImageData(0, 0, 1, h)           // one pixel per output</pre>
-<p class="note">That's the real sequence from <a href="../lib/blend.js"><code>lib/blend.js</code></a>, trimmed. Negative numbers can't be colours, so positives go in the red channel and negatives in green, and the strip is drawn twice (once swapped) so all four sign combinations get multiplied.</p>
-<div class="split" style="margin-top:22px">
-<div><h3><span class="tag js">JS</span> the bookkeeping</h3><ul>
-<li>The tokenizer</li><li>Norms</li><li>Attention scores and softmax over the cache</li><li>Adding results back into the running vector</li><li>Choosing the 40 candidates and rolling the needle's random number</li></ul></div>
-<div><h3><span class="tag canvas">Canvas</span> every matrix multiply</h3><ul>
-<li>Query, key, value and attention output</li><li>Gate, up and down in the feed-forward part</li><li>The output head over the whole vocabulary</li><li>The SiLU curve, as a gradient</li><li>The live tiles on this page are those products</li></ul></div>
-<div style="grid-column:1/-1"><h3><span class="tag css">CSS</span> the rotary positions</h3><ul>
-<li>Turning every query and key pair by its position angle, with <code>rotate</code> and <code>translate</code></li><li>The dots on the clocks are those pairs</li></ul></div>
-</div>
-</section>
+        <p class="note">
+          That's the real sequence from <a href="../lib/blend.js"><code>lib/blend.js</code></a
+          >, trimmed. Negative numbers can't be colours, so positives go in the red channel and negatives in green, and
+          the strip is drawn twice (once swapped) so all four sign combinations get multiplied.
+        </p>
+        <div class="split" style="margin-top: 22px">
+          <div>
+            <h3><span class="tag js">JS</span> the bookkeeping</h3>
+            <ul>
+              <li>The tokenizer</li>
+              <li>Norms</li>
+              <li>Attention scores and softmax over the cache</li>
+              <li>Adding results back into the running vector</li>
+              <li>Choosing the 40 candidates and rolling the needle's random number</li>
+            </ul>
+          </div>
+          <div>
+            <h3><span class="tag canvas">Canvas</span> every matrix multiply</h3>
+            <ul>
+              <li>Query, key, value and attention output</li>
+              <li>Gate, up and down in the feed-forward part</li>
+              <li>The output head over the whole vocabulary</li>
+              <li>The SiLU curve, as a gradient</li>
+              <li>The live tiles on this page are those products</li>
+            </ul>
+          </div>
+          <div style="grid-column: 1/-1">
+            <h3><span class="tag css">CSS</span> the rotary positions</h3>
+            <ul>
+              <li>
+                Turning every query and key pair by its position angle, with <code>rotate</code> and
+                <code>translate</code>
+              </li>
+              <li>The dots on the clocks are those pairs</li>
+            </ul>
+          </div>
+        </div>
+      </section>
 
-<section>
-<h2 class="big">The weights themselves</h2>
-<p class="section-lede">All 22 of them. One pixel is one weight: red is positive, green is negative, brighter is bigger. Every picture in a row is drawn at the same scale. Click one to see it up close.</p>
-<div class="pics" id="pics"></div>
-</section>
+      <section>
+        <h2 class="big">The weights themselves</h2>
+        <p class="section-lede">
+          All 22 of them. One pixel is one weight: red is positive, green is negative, brighter is bigger. Every picture
+          in a row is drawn at the same scale. Click one to see it up close.
+        </p>
+        <div class="pics" id="pics"></div>
+      </section>
 
-<section>
-<h2 class="big">What it says</h2>
-<ul class="says">
-<li><strong>Blend modes are exact enough.</strong> In a float16 canvas a multiply lands within about 0.2% of the true answer, and the logits end up within 0.17 of the real model's on values around 20. In an ordinary 8-bit canvas the same multiply is about 5% off, which is too much.</li>
-<li><strong>Full-precision weights fit in 8-bit pictures.</strong> Each pixel holds 8 bits of size, the channel holds the sign, and every row has its own scale. Against the original weights that moves the logits by about 0.06 and changes none of the top tokens.</li>
-<li><strong>Layout can do the sampling.</strong> Flexbox does the softmax, flex <code>order</code> does the sort and a hit test does the pick. Given the same random number, it chose the same token as the plain JavaScript sampler in 1,600 of 1,600 tries (400 needle positions on each of four sets of scores), and in 19,995 of 20,000 with finer steps. The five misses were each one box along, with the needle within 1/64 of a pixel of the edge between them, which is as fine as layout measures. <code>samplingTest()</code> in the console reruns it.</li>
-<li><strong>The pick costs about 4 ms a token</strong> against about 1 ms for the JavaScript sampler it replaced, on a token that takes about 70 ms. The 40 boxes are reused, not rebuilt. Box widths, read back through a <code>ResizeObserver</code>, are within 0.00007 of the true probabilities on a 497-pixel row.</li>
-<li><strong>CSS transforms can do the rotary positions.</strong> Against <code>Math.cos</code> and <code>Math.sin</code> on 60,000 random pairs, the worst answer was off by 0.0006% of the longest pair on its clock with the page scrolled to the top, and 0.0025% scrolled to the bottom. It changes none of the top tokens. The logits still move by up to 0.08, but a nudge of one part in ten million moves them just as far, because every canvas multiply rounds to float16.</li>
-<li><strong>The rotation costs about 5 ms a token,</strong> or 7% more work on the main thread: three rounds of about 125 style writes, one layout and 125 position reads, plus painting the dots. <code>window.rotaryTest()</code> and <code>window.rotaryCost()</code> measure both here.</li>
-<li><strong>It runs at about 14 tokens a second</strong> in headless Chrome on a CPU with no GPU, with the tiles and clocks drawing. With the rotation in plain JavaScript it was about 15.</li>
-<li><strong>It isn't fast.</strong> A plain JavaScript loop over the same weights is about 19 times faster per token in headless Chrome on a CPU. The race above gives the number for your machine. The canvas is here because you can watch it.</li>
-</ul>
-<h3 class="sub3">Gotchas found on the way</h3>
-<ul class="says">
-<li>Squashing a picture to one pixel in a single <code>drawImage</code> gives garbage, because the browser only samples a few pixels. Halving step by step is what makes it a sum.</li>
-<li>Positions read back from the page are 32-bit floats measured from the corner of the window. The clocks are about 20 pixels across and sit a thousand or more pixels from that corner, so a few digits of every answer are spent on where the clock is. With a clock in the corner itself the rotation is good to the last digit of a float (about 1 part in 10 million).</li>
-<li>Placing the points with <code>left</code> and <code>top</code> would snap them to 1/64 of a pixel. <code>translate</code> keeps the whole float, and scaling each clock by a power of two means nothing is lost turning numbers into pixels.</li>
-<li>Colours can't be negative, so every number is split into a positive and a negative channel and the multiply is done for all four sign combinations.</li>
-<li>This model's vocabulary has glued-together pieces (a full stop, an end marker and the next speaker's tag as one token) that its own tokenizer never produces. They're blocked at sampling.</li>
-<li><code>elementFromPoint</code> works in whole pixels and returns the last box touching that pixel, so on a row of 40 boxes it named the wrong one about 4% of the time. The fix is to slide the row a fraction of a pixel just for the hit test, so the needle's exact position lines up with the pixel's edge, then slide it back before anything is painted.</li>
-<li>A hit test only sees what's on screen. If the row is scrolled out of view or under a dialog, the pick falls back to comparing the needle with the box edges layout produced.</li>
-<li>Only tried in Chrome. It needs a float16 2D canvas.</li>
-</ul>
-</section>
-</main>
-<script type="module">
-import { Model, sample, selfTest } from '../lib/llama.js?v=6';
-import { flexPicker, samplingTest } from '../lib/pick.js?v=6';
-import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js?v=6';
-import { clockRig, rigCheck, rigCost } from '../lib/clocks.js?v=6';
-const $ = id => document.getElementById(id);
-const BOS = 1, END = 2, A = 3, B = 4, NL = 5;
-let M, vocab, rank, st, banned = [], busy = false, history = [];
-const picker = flexPicker($('pick'), id => id < 5 ? M.bundle.tok.vocab[id] : id === NL ? '\u21b5' : M.bundle.tok.vocab[id].replace(/\u2581/g, ' '));
+      <section>
+        <h2 class="big">What it says</h2>
+        <ul class="says">
+          <li>
+            <strong>Blend modes are exact enough.</strong> In a float16 canvas a multiply lands within about 0.2% of the
+            true answer, and the logits end up within 0.17 of the real model's on values around 20. In an ordinary 8-bit
+            canvas the same multiply is about 5% off, which is too much.
+          </li>
+          <li>
+            <strong>Full-precision weights fit in 8-bit pictures.</strong> Each pixel holds 8 bits of size, the channel
+            holds the sign, and every row has its own scale. Against the original weights that moves the logits by about
+            0.06 and changes none of the top tokens.
+          </li>
+          <li>
+            <strong>Layout can do the sampling.</strong> Flexbox does the softmax, flex <code>order</code> does the sort
+            and a hit test does the pick. Given the same random number, it chose the same token as the plain JavaScript
+            sampler in 1,600 of 1,600 tries (400 needle positions on each of four sets of scores), and in 19,995 of
+            20,000 with finer steps. The five misses were each one box along, with the needle within 1/64 of a pixel of
+            the edge between them, which is as fine as layout measures. <code>samplingTest()</code> in the console
+            reruns it.
+          </li>
+          <li>
+            <strong>The pick costs about 4 ms a token</strong> against about 1 ms for the JavaScript sampler it
+            replaced, on a token that takes about 70 ms. The 40 boxes are reused, not rebuilt. Box widths, read back
+            through a <code>ResizeObserver</code>, are within 0.00007 of the true probabilities on a 497-pixel row.
+          </li>
+          <li>
+            <strong>CSS transforms can do the rotary positions.</strong> Against <code>Math.cos</code> and
+            <code>Math.sin</code> on 60,000 random pairs, the worst answer was off by 0.0006% of the longest pair on its
+            clock with the page scrolled to the top, and 0.0025% scrolled to the bottom. It changes none of the top
+            tokens. The logits still move by up to 0.08, but a nudge of one part in ten million moves them just as far,
+            because every canvas multiply rounds to float16.
+          </li>
+          <li>
+            <strong>The rotation costs about 5 ms a token,</strong> or 7% more work on the main thread: three rounds of
+            about 125 style writes, one layout and 125 position reads, plus painting the dots.
+            <code>window.rotaryTest()</code> and <code>window.rotaryCost()</code> measure both here.
+          </li>
+          <li>
+            <strong>It runs at about 14 tokens a second</strong> in headless Chrome on a CPU with no GPU, with the tiles
+            and clocks drawing. With the rotation in plain JavaScript it was about 15.
+          </li>
+          <li>
+            <strong>It isn't fast.</strong> A plain JavaScript loop over the same weights is about 19 times faster per
+            token in headless Chrome on a CPU. The race above gives the number for your machine. The canvas is here
+            because you can watch it.
+          </li>
+        </ul>
+        <h3 class="sub3">Gotchas found on the way</h3>
+        <ul class="says">
+          <li>
+            Squashing a picture to one pixel in a single <code>drawImage</code> gives garbage, because the browser only
+            samples a few pixels. Halving step by step is what makes it a sum.
+          </li>
+          <li>
+            Positions read back from the page are 32-bit floats measured from the corner of the window. The clocks are
+            about 20 pixels across and sit a thousand or more pixels from that corner, so a few digits of every answer
+            are spent on where the clock is. With a clock in the corner itself the rotation is good to the last digit of
+            a float (about 1 part in 10 million).
+          </li>
+          <li>
+            Placing the points with <code>left</code> and <code>top</code> would snap them to 1/64 of a pixel.
+            <code>translate</code> keeps the whole float, and scaling each clock by a power of two means nothing is lost
+            turning numbers into pixels.
+          </li>
+          <li>
+            Colours can't be negative, so every number is split into a positive and a negative channel and the multiply
+            is done for all four sign combinations.
+          </li>
+          <li>
+            This model's vocabulary has glued-together pieces (a full stop, an end marker and the next speaker's tag as
+            one token) that its own tokenizer never produces. They're blocked at sampling.
+          </li>
+          <li>
+            <code>elementFromPoint</code> works in whole pixels and returns the last box touching that pixel, so on a
+            row of 40 boxes it named the wrong one about 4% of the time. The fix is to slide the row a fraction of a
+            pixel just for the hit test, so the needle's exact position lines up with the pixel's edge, then slide it
+            back before anything is painted.
+          </li>
+          <li>
+            A hit test only sees what's on screen. If the row is scrolled out of view or under a dialog, the pick falls
+            back to comparing the needle with the box edges layout produced.
+          </li>
+          <li>Tested in Chrome only. It needs a float16 2D canvas.</li>
+        </ul>
+      </section>
+    </main>
+    <script type="module">
+      // The page script. The model itself lives in lib/: blend.js does the canvas multiplies, llama.js runs the
+      // transformer, clocks.js turns the rotary positions with CSS, pick.js picks tokens with flexbox and a hit test,
+      // ui.js draws the tiles, race and gallery. This file tokenises, keeps the conversation and wires up the page.
+      import { Model, sample, selfTest } from '../lib/llama.js?v=6';
+      import { flexPicker, samplingTest } from '../lib/pick.js?v=6';
+      import { tileMaker, wireRace, showPictures, layerRows } from '../lib/ui.js?v=6';
+      import { clockRig, rigCheck, rigCost } from '../lib/clocks.js?v=6';
+      const $ = id => document.getElementById(id);
+      // Special token ids in TinyChat's vocabulary: start, end of turn, speaker A (you), speaker B (the model), newline.
+      const BOS = 1,
+        END = 2,
+        A = 3,
+        B = 4,
+        NL = 5;
+      let M,
+        vocab,
+        rank,
+        st,
+        banned = [],
+        busy = false,
+        history = [];
+      // The layout sampler, labelling each box with its token's text.
+      const picker = flexPicker($('pick'), id =>
+        id < 5 ? M.bundle.tok.vocab[id] : id === NL ? '\u21b5' : M.bundle.tok.vocab[id].replace(/\u2581/g, ' '),
+      );
 
-// Byte-pair encoding over the whole string, the way the model's tokenizer does it.
-function bpe(seg) {
-  let s = [...seg];
-  for (;;) {
-    let best = Infinity, at = -1;
-    for (let i = 0; i < s.length - 1; i++) { const r = rank.get(s[i] + ' ' + s[i + 1]); if (r !== undefined && r < best) { best = r; at = i; } }
-    if (at < 0) break;
-    const a = s[at], b = s[at + 1], out = [];
-    for (let i = 0; i < s.length; i++) { if (i < s.length - 1 && s[i] === a && s[i + 1] === b) { out.push(a + b); i++; } else out.push(s[i]); }
-    s = out;
-  }
-  return s.map(p => vocab.get(p) ?? 0);
-}
-function encode(text, bos = true) {
-  const ids = bos ? [BOS] : [];
-  for (const part of text.split(/(<A>|<B>)/)) {
-    if (part === '<A>') ids.push(A); else if (part === '<B>') ids.push(B);
-    else if (part) for (const p of ('\u2581' + part.replace(/ /g, '\u2581')).split(/(\u2581<unk>|\u2581<start>|\u2581<end>)/)) {
-      if (p === '\u2581<end>') ids.push(END); else if (p === '\u2581<start>') ids.push(BOS); else if (p === '\u2581<unk>') ids.push(0); else if (p) ids.push(...bpe(p));
-    }
-  }
-  return ids;
-}
-const piece = id => id < 5 ? '' : M.bundle.tok.vocab[id].replace(/\u2581/g, ' ');
-const clean = t => t.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+      // Byte-pair encoding over the whole string, the way the model's tokenizer does it.
+      function bpe(seg) {
+        let s = [...seg];
+        for (;;) {
+          let best = Infinity,
+            at = -1;
+          for (let i = 0; i < s.length - 1; i++) {
+            const r = rank.get(s[i] + ' ' + s[i + 1]);
+            if (r !== undefined && r < best) {
+              best = r;
+              at = i;
+            }
+          }
+          if (at < 0) break;
+          const a = s[at],
+            b = s[at + 1],
+            out = [];
+          for (let i = 0; i < s.length; i++) {
+            if (i < s.length - 1 && s[i] === a && s[i + 1] === b) {
+              out.push(a + b);
+              i++;
+            } else out.push(s[i]);
+          }
+          s = out;
+        }
+        return s.map(p => vocab.get(p) ?? 0);
+      }
+      // Text to ids: <A> and <B> markers become their tokens, spaces become '▁', and the special words <unk>, <start>
+      // and <end> are matched whole before the rest goes through BPE.
+      function encode(text, bos = true) {
+        const ids = bos ? [BOS] : [];
+        for (const part of text.split(/(<A>|<B>)/)) {
+          if (part === '<A>') ids.push(A);
+          else if (part === '<B>') ids.push(B);
+          else if (part)
+            for (const p of ('\u2581' + part.replace(/ /g, '\u2581')).split(
+              /(\u2581<unk>|\u2581<start>|\u2581<end>)/,
+            )) {
+              if (p === '\u2581<end>') ids.push(END);
+              else if (p === '\u2581<start>') ids.push(BOS);
+              else if (p === '\u2581<unk>') ids.push(0);
+              else if (p) ids.push(...bpe(p));
+            }
+        }
+        return ids;
+      }
+      const piece = id => (id < 5 ? '' : M.bundle.tok.vocab[id].replace(/\u2581/g, ' '));
+      const clean = t =>
+        t
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
 
-function bubble(cls, text) { $('hint')?.remove(); const d = document.createElement('div'); d.className = 'msg ' + cls; d.textContent = text; $('log').append(d); $('log').scrollTop = $('log').scrollHeight; return d; }
-function feed(ids, wantLast) { let lg = null; ids.forEach((id, i) => { lg = M.step(st, id, wantLast && i === ids.length - 1); }); return lg; }
-function fresh(keep) {
-  // Start the context again from the last few turns that fit.
-  st = M.newState(); feed([BOS], false);
-  let used = 1, from = history.length; while (from > 0 && used + history[from - 1].length < keep) used += history[--from].length;
-  history = history.slice(from); history.forEach(t => feed(t, false));
-}
-async function send(text) {
-  busy = true; $('go').disabled = true; $('reset').disabled = true; $('race').disabled = true;
-  bubble('a', text);
-  const turn = encode('<A>' + text + ' <end>\n<B>', false);
-  if (st.pos + turn.length + 60 > M.ctx) fresh(M.ctx - turn.length - 90);
-  const out = bubble('b', ''), t0 = performance.now(), r0 = M.ropeMs; await new Promise(r => setTimeout(r, 0));
-  let lg = feed(turn, true); const reply = []; let s = '';
-  for (let n = 0; n < 60 && st.pos < M.ctx - 2; n++) {
-    for (const i of banned) lg[i] = -Infinity;   // glued-together leftovers in the vocabulary the model never learned
-    const tok = picker.pick(lg); if (tok === END || tok === A || tok === B || tok === BOS) break;
-    reply.push(tok); s += piece(tok); out.textContent = s.trim(); $('log').scrollTop = $('log').scrollHeight;
-    $('stat').textContent = `${((turn.length + n + 1) / ((performance.now() - t0) / 1000)).toFixed(1)} tokens/s, ${M.count} canvas multiplies and ${((M.ropeMs - r0) / (turn.length + n)).toFixed(1)} ms of CSS rotation per token, ${st.pos} of ${M.ctx} tokens of memory used`;
-    await new Promise(r => setTimeout(r, 0));
-    lg = M.step(st, tok);
-  }
-  if (!s.trim()) out.textContent = '(said nothing)';
-  feed([END, NL], false); history.push(turn, [...reply, END, NL]);
-  busy = false; $('go').disabled = false; $('reset').disabled = false; $('race').disabled = false; $('prompt').focus();
-}
-$('f').addEventListener('submit', e => { e.preventDefault(); const t = clean($('prompt').value); if (!busy && M && t) { $('prompt').value = ''; send(t); } });
-$('reset').addEventListener('click', () => { if (busy) return; history = []; fresh(0); $('log').textContent = ''; const h = document.createElement('div'); h.className = 'hint'; h.id = 'hint'; h.textContent = 'New chat. Say hi.'; $('log').append(h); $('stat').textContent = ''; });
-wireRace($('race'), () => busy ? null : M, () => [...M.bundle.test.ids, ...M.bundle.test.greedy], { canvas: $('r-canvas'), js: $('r-js'), x: $('r-x'), ok: $('r-ok') });
-// Does the layout pick the token plain arithmetic would? Four sets of scores (the reference run's, the same from the
-// 8-bit pictures, and two flattened ones so more tokens are in play), 400 needle positions each, against sample()
-// given the same random number.
-window.samplingTest = (n = 400) => { if (busy || !M) return null; const mask = a => { const lg = Float32Array.from(a); for (const i of banned) lg[i] = -Infinity; return lg; }, t = M.bundle.test;
-  return samplingTest(picker, [mask(t.firstLogits), mask(t.firstLogits8), mask(t.firstLogits.map(v => v / 3)), mask(t.firstLogits.map(v => v / 10))], (lg, r) => sample(lg, { temp: 1, topK: 40, topP: 0.8, r }), n); };
-window.picker = picker;
-window.rotaryTest = (n = 200) => rigCheck(M, n);
-window.rotaryCost = (rounds = 12) => rigCost(M, [...M.bundle.test.ids, ...M.bundle.test.greedy], rounds);
-window.selfTest = () => { const t = M.bundle.test; return { vsFloat: selfTest(M, t.ids, t.greedy, t.firstLogits), vs8bit: selfTest(M, t.ids, t.greedy8, t.firstLogits8), encodeOK: t.encode.map(c => JSON.stringify(encode(c.text)) === JSON.stringify(c.ids)) }; };
+      // Add a chat bubble ('a' for you, 'b' for the model) and keep the log scrolled to the bottom.
+      function bubble(cls, text) {
+        $('hint')?.remove();
+        const d = document.createElement('div');
+        d.className = 'msg ' + cls;
+        d.textContent = text;
+        $('log').append(d);
+        $('log').scrollTop = $('log').scrollHeight;
+        return d;
+      }
+      // Run tokens through the model, keeping only the last token's logits if asked.
+      function feed(ids, wantLast) {
+        let lg = null;
+        ids.forEach((id, i) => {
+          lg = M.step(st, id, wantLast && i === ids.length - 1);
+        });
+        return lg;
+      }
+      function fresh(keep) {
+        // Start the context again from the last few turns that fit.
+        st = M.newState();
+        feed([BOS], false);
+        let used = 1,
+          from = history.length;
+        while (from > 0 && used + history[from - 1].length < keep) used += history[--from].length;
+        history = history.slice(from);
+        history.forEach(t => feed(t, false));
+      }
+      // One turn: wrap your message as '<A>text <end>\n<B>', make room in the context if needed, then let the model
+      // reply token by token (up to 60), picking each with the layout sampler, until it ends its turn.
+      async function send(text) {
+        busy = true;
+        $('go').disabled = true;
+        $('reset').disabled = true;
+        $('race').disabled = true;
+        bubble('a', text);
+        const turn = encode('<A>' + text + ' <end>\n<B>', false);
+        if (st.pos + turn.length + 60 > M.ctx) fresh(M.ctx - turn.length - 90);
+        const out = bubble('b', ''),
+          t0 = performance.now(),
+          r0 = M.ropeMs;
+        await new Promise(r => setTimeout(r, 0));
+        let lg = feed(turn, true);
+        const reply = [];
+        let s = '';
+        for (let n = 0; n < 60 && st.pos < M.ctx - 2; n++) {
+          for (const i of banned) lg[i] = -Infinity; // glued-together leftovers in the vocabulary the model never learned
+          const tok = picker.pick(lg);
+          if (tok === END || tok === A || tok === B || tok === BOS) break;
+          reply.push(tok);
+          s += piece(tok);
+          out.textContent = s.trim();
+          $('log').scrollTop = $('log').scrollHeight;
+          $('stat').textContent =
+            `${((turn.length + n + 1) / ((performance.now() - t0) / 1000)).toFixed(1)} tokens/s, ${M.count} canvas multiplies and ${((M.ropeMs - r0) / (turn.length + n)).toFixed(1)} ms of CSS rotation per token, ${st.pos} of ${M.ctx} tokens of memory used`;
+          await new Promise(r => setTimeout(r, 0));
+          lg = M.step(st, tok);
+        }
+        if (!s.trim()) out.textContent = '(said nothing)';
+        feed([END, NL], false);
+        history.push(turn, [...reply, END, NL]);
+        busy = false;
+        $('go').disabled = false;
+        $('reset').disabled = false;
+        $('race').disabled = false;
+        $('prompt').focus();
+      }
+      $('f').addEventListener('submit', e => {
+        e.preventDefault();
+        const t = clean($('prompt').value);
+        if (!busy && M && t) {
+          $('prompt').value = '';
+          send(t);
+        }
+      });
+      $('reset').addEventListener('click', () => {
+        if (busy) return;
+        history = [];
+        fresh(0);
+        $('log').textContent = '';
+        const h = document.createElement('div');
+        h.className = 'hint';
+        h.id = 'hint';
+        h.textContent = 'New chat. Say hi.';
+        $('log').append(h);
+        $('stat').textContent = '';
+      });
+      wireRace(
+        $('race'),
+        () => (busy ? null : M),
+        () => [...M.bundle.test.ids, ...M.bundle.test.greedy],
+        { canvas: $('r-canvas'), js: $('r-js'), x: $('r-x'), ok: $('r-ok') },
+      );
+      // Does the layout pick the token plain arithmetic would? Four sets of scores (the reference run's, the same from the
+      // 8-bit pictures, and two flattened ones so more tokens are in play), 400 needle positions each, against sample()
+      // given the same random number.
+      window.samplingTest = (n = 400) => {
+        if (busy || !M) return null;
+        const mask = a => {
+            const lg = Float32Array.from(a);
+            for (const i of banned) lg[i] = -Infinity;
+            return lg;
+          },
+          t = M.bundle.test;
+        return samplingTest(
+          picker,
+          [
+            mask(t.firstLogits),
+            mask(t.firstLogits8),
+            mask(t.firstLogits.map(v => v / 3)),
+            mask(t.firstLogits.map(v => v / 10)),
+          ],
+          (lg, r) => sample(lg, { temp: 1, topK: 40, topP: 0.8, r }),
+          n,
+        );
+      };
+      window.picker = picker;
+      window.rotaryTest = (n = 200) => rigCheck(M, n);
+      window.rotaryCost = (rounds = 12) => rigCost(M, [...M.bundle.test.ids, ...M.bundle.test.greedy], rounds);
+      window.selfTest = () => {
+        const t = M.bundle.test;
+        return {
+          vsFloat: selfTest(M, t.ids, t.greedy, t.firstLogits),
+          vs8bit: selfTest(M, t.ids, t.greedy8, t.firstLogits8),
+          encodeOK: t.encode.map(c => JSON.stringify(encode(c.text)) === JSON.stringify(c.ids)),
+        };
+      };
 
-Model.load('model.json', { tile: tileMaker($('layers')), gradientCanvas: $('lut') })
-  .then(m => { M = m; M.rig = clockRig($('clocks'), M, { size: 44, posLabel: $('clockpos') }); vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i])); rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i])); fresh(0);
-    showPictures(M, $('pics'), [...layerRows(M), { label: 'Output head, which is also the word embeddings', items: [{ key: 'head', label: 'head', turn: true }] }]);
-    banned = M.bundle.tok.vocab.flatMap((p, i) => i > 5 && /[<\n]/.test(p) ? [i] : []);
-    $('go').disabled = false; $('reset').disabled = false; $('race').disabled = false; $('hint').textContent = 'Say hi.'; $('stat').textContent = `Ready. ${M.bundle.name}, loaded as ${M.count} pictures.`; })
-  .catch(e => { $('hint').textContent = 'Could not start: ' + e.message + '. This needs a recent Chrome or Edge (float16 canvas).'; });
-</script>
-</body>
+      // Load the weight pictures, attach the clock faces, build the tokenizer tables and the gallery, then enable the
+      // buttons. Vocabulary entries glued to '<' or a newline are banned: the model never learned to use them.
+      Model.load('model.json', { tile: tileMaker($('layers')), gradientCanvas: $('lut') })
+        .then(m => {
+          M = m;
+          M.rig = clockRig($('clocks'), M, { size: 44, posLabel: $('clockpos') });
+          vocab = new Map(M.bundle.tok.vocab.map((p, i) => [p, i]));
+          rank = new Map(M.bundle.tok.merges.map((p, i) => [p, i]));
+          fresh(0);
+          showPictures(M, $('pics'), [
+            ...layerRows(M),
+            {
+              label: 'Output head, which is also the word embeddings',
+              items: [{ key: 'head', label: 'head', turn: true }],
+            },
+          ]);
+          banned = M.bundle.tok.vocab.flatMap((p, i) => (i > 5 && /[<\n]/.test(p) ? [i] : []));
+          $('go').disabled = false;
+          $('reset').disabled = false;
+          $('race').disabled = false;
+          $('hint').textContent = 'Say hi.';
+          $('stat').textContent = `Ready. ${M.bundle.name}, loaded as ${M.count} pictures.`;
+        })
+        .catch(e => {
+          $('hint').textContent =
+            'Could not start: ' + e.message + '. This needs a recent Chrome or Edge (float16 canvas).';
+        });
+    </script>
+  </body>
 </html>
