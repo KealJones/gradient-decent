@@ -8,7 +8,7 @@ The name is the joke. Gradient descent is how a model gets trained. No page here
 
 Each page runs a real model, explains the trick step by step, and races it against a plain JavaScript loop.
 
-There are eight so far:
+There are nine so far:
 
 | | model | what it does |
 |---|---|---|
@@ -20,6 +20,7 @@ There are eight so far:
 | [`audio/`](audio/) | the same model as `css/`, shipped as a 5-second float WAV | The same babble, with the whole forward pass in one Web Audio render per character. You can play the weights and each character's render. |
 | [`filter/`](filter/) | trained here on MNIST shrunk to 14×14, 10K weights, three layers | Reads a digit you draw, with the whole forward pass in one SVG `<filter>`. |
 | [`layout/`](layout/) | the same model as `css/` | The same babble with no arithmetic written anywhere: every number is the size of a box, and page layout does the sums. |
+| [`lorem/`](lorem/) | a 31K-weight attention model trained on Cicero's *De Finibus* | Lorem ipsum written by page layout: attention, rotary positions and a feed-forward layer as box sizes, typeset into a fake magazine. |
 
 ## The canvas ones
 
@@ -205,6 +206,33 @@ JavaScript copy of the model exists only as the checker in the race.
 In headless Chrome 153 the dot landed on the same character as plain JavaScript 20 times out of 20 with scores
 within 0.006, at about 670 ms a character for 44,564 boxes: more than 10,000 times slower than the JavaScript loop.
 The page builds its boxes from `css/model.json` at load, so there is nothing to compile.
+
+## The lorem one
+
+[`lorem/`](lorem/) is the layout machine grown into a transformer. Lorem ipsum is a mangled passage of Cicero's
+*De Finibus Bonorum et Malorum* (45 BC), so the model is trained on the five books of *De Finibus* (about 47,000
+words, from the Latin Library): one attention layer with two heads, rotary positions, a 96-neuron feed-forward layer
+and 320 word pieces, 31K weights in all. It trained in 70 seconds on a CPU. On text it never saw it scores 3.62 nats
+a piece, against 5.39 for a model that only knows how common each piece is.
+
+On top of the moves from `layout/`:
+
+- **Weights become heights.** Sums are columns: a box `n` wide with `aspect-ratio: 1 / w` is `n × w` tall. Both
+  stretchy leftovers are kept, so a sum can come out negative.
+- **Rotation is constants.** Rotary positions need cos and sin of an angle that depends only on the position, so
+  they are box shapes set by a position class. The angles repeat every 64 positions, so a 16-slot ring never shifts.
+- **Two live numbers multiply with `cqw`.** The box is one number wide and is a size container; inside it, a box is
+  the other number in `cqw`, so its height is the product.
+- **Division is `flex-grow`.** Attention shares are `relu(score) / (1 + total)`: each slot grows by its score next
+  to a sink that grows by 1. The model was trained with that rule instead of the usual exponential, and without
+  layer norms, so that it would fit.
+- **Holding back copies.** The residual connections let later stages start on half-new inputs, so a few copies wait
+  for the stage before to report. Each big stage is laid out once, and a piece is done when a frame passes with
+  nothing resized.
+
+In headless Chrome 153 the boxes picked the same piece as a plain JavaScript copy 24 times out of 24, with every
+score within 0.012, at about half a second a piece for 66,368 boxes: roughly 3,000 times slower than JavaScript.
+`tools/train_lorem.py` trains it and `tools/export_lorem.py` writes `lorem/model.json`.
 
 ## Run it
 
